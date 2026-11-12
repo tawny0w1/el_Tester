@@ -1,0 +1,213 @@
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
+import time
+import threading
+
+
+# Set up Chrome options
+
+
+chrome_options = Options()
+
+# Set up the Chrome driver
+
+service = Service('/usr/bin/chromedriver')  # Update with the correct path to your chromedriver
+# Open two browser windows
+driver_left = webdriver.Chrome(service=service, options=chrome_options)
+driver_right = webdriver.Chrome(service=service, options=chrome_options)
+
+
+
+# Load your source and translated versions
+
+driver_left.get("https://360.eu.articulate.com/review/content/b32d5757-57ef-49bb-af88-1b0709c2b8eb/review")
+driver_right.get("https://360.eu.articulate.com/review/content/b32d5757-57ef-49bb-af88-1b0709c2b8eb/review")
+
+
+
+
+# Arrange the windows side by side (optional)
+driver_left.set_window_position(0, 0)
+driver_left.set_window_size(960, 1080)  # Adjust based on screen resolution
+
+driver_right.set_window_position(960, 0)
+driver_right.set_window_size(960, 1080)  # Adjust based on screen resolution
+
+
+# JavaScript to inject for blocking navigation and tracking clicks
+click_tracking_script = """
+    console.log("Reinjecting click interception script");
+    document.addEventListener('click', function(event) {
+        var target = event.target.closest('a, button');
+        if (target) {
+            var url = target.href; 
+            if (url) {
+                event.preventDefault();
+                console.log("Click intercepted:", url);
+                window.sessionStorage.setItem('lastClickedUrl', url);
+            }
+        }
+    }, true);
+        
+    console.log("Injecting improved scroll tracking...");
+
+    function isElementScrollable(element) {
+        if (!element || element === document.body) return false;
+        let style = window.getComputedStyle(element);
+        return (
+            (style.overflowY === "auto" || style.overflowY === "scroll") &&
+            element.scrollHeight > element.clientHeight
+        );
+    }
+
+    function getHoveredScrollableElement(x, y) {
+        let element = document.elementFromPoint(x, y); // Get element under cursor
+        while (element && element !== document.body) {
+            if (isElementScrollable(element)) {
+                console.log("Detected scrollable element:", element);
+                return element;  
+            }
+            element = element.parentElement; // Move up the tree
+        }
+        return document.body; // Default to body if no scrollable div found
+    }
+
+    let lastScrolledElement = document.body; 
+
+    document.addEventListener('mousemove', function(event) {
+        let scrollableElement = getHoveredScrollableElement(event.clientX, event.clientY);
+        if (scrollableElement && scrollableElement !== lastScrolledElement) {
+            lastScrolledElement = scrollableElement;
+            console.log("Now scrolling:", lastScrolledElement);
+        }
+    }, true);
+
+    document.addEventListener('wheel', function(event) {
+        if (lastScrolledElement) {
+            lastScrolledElement.scrollTop += event.deltaY;
+            setTimeout(() => {  
+                console.log("Scrolled Element:", lastScrolledElement);
+                console.log("Scroll Position:", lastScrolledElement.scrollTop);
+            }, 50);
+        }
+    }, { passive: false });
+
+
+
+
+"""
+
+
+
+# Function to inject JavaScript on a given driver instance
+def inject_click_tracking(driver):
+    driver.execute_script(click_tracking_script)
+
+# Inject click tracking script initially
+inject_click_tracking(driver_left)
+
+
+def synchronize_scroll():
+    last_synced_element = None  # Store last synced element
+    while True:
+        try:
+            # Get scroll positions for the main window
+            main_scroll = driver_left.execute_script("""
+             //  console.log('Left scroll position:',scrollY);
+               return window.scrollY;
+            """)
+
+           
+
+            # Sync main window scroll
+            driver_right.execute_script(f"window.scrollTo(0, {main_scroll});")
+
+            # Retrieve last scrolled element
+            scrolled_element_selector = driver_left.execute_script("""
+                if (window.lastScrolledElement) {
+                    window.lastScrolledElement.id = window.lastScrolledElement.id || 
+                        ('scrollable_' + Math.random().toString(36).substr(2, 9));
+                    return '#' + window.lastScrolledElement.id;
+                }
+                return null;
+            """)
+
+            if scrolled_element_selector:
+                print(f"Scrolled Element: {scrolled_element_selector}")  # Debugging output
+                
+                time.sleep(0.1)  # Delay to ensure scrollTop updates
+
+                # Get updated scroll position
+                scroll_top = driver_left.execute_script(f"""
+                    let el = document.querySelector('{scrolled_element_selector}');
+                    return el ? el.scrollTop : null;
+                """)
+
+                print(f"Scroll Top: {scroll_top}")  # Debugging output
+
+                if scroll_top is not None and scrolled_element_selector != last_synced_element:
+                    last_synced_element = scrolled_element_selector
+
+                    # Apply scroll position to the right panel
+                    driver_right.execute_script(f"""
+                        let el = document.querySelector('{scrolled_element_selector}');
+                        if (el) el.scrollTop = {scroll_top};
+                    """)
+
+
+
+        except Exception as e:
+            print(f"Scroll error: {e}")
+            break
+
+        time.sleep(0.1)  # Avoid excessive updates
+
+
+# Function to synchronize clicks
+def synchronize_clicks():
+    last_synced_url = None
+
+    while True:
+        try:
+            clicked_url = driver_left.execute_script("return window.sessionStorage.getItem('lastClickedUrl') || null;")
+
+            if clicked_url and clicked_url != last_synced_url:
+                last_synced_url = clicked_url
+                print(f"Click detected: {clicked_url}")  # Debugging output
+
+                # Load the clicked URL in both windows
+                driver_left.get(clicked_url)
+                driver_right.get(clicked_url)
+
+                # Reinject JavaScript because a new page has loaded
+                time.sleep(1)  # Wait for the page to load
+                inject_click_tracking(driver_left)
+
+                # Clear stored value to avoid repeat actions
+                driver_left.execute_script("window.sessionStorage.removeItem('lastClickedUrl');")
+        except Exception as e:
+            print(f"Error retrieving clicked URL: {e}")
+            break
+
+        time.sleep(0.1)
+
+# Run synchronization functions in parallel
+scroll_thread = threading.Thread(target=synchronize_scroll, daemon=True)
+scroll_thread.start()
+
+
+click_thread = threading.Thread(target=synchronize_clicks, daemon=True)
+click_thread.start()
+
+# Keep the script running
+try:
+    while True:
+        time.sleep(0.5)
+except KeyboardInterrupt:
+    driver_left.quit()
+    driver_right.quit()

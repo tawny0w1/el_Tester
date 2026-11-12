@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>EL Tester: form</title>
+<link rel="stylesheet" href="common.css"><script src="common.js"></script></head>
+<body>
+<h1>Form</h1>
+<div class="hint">Checks: input sync (item 3) and form-submit navigation (item 6).
+Type, pick values, then press Enter in the name field or click Submit.</div>
+<nav><a id="link-index" href="index.html">Index</a></nav>
+<form id="form" action="submitted.html" method="get">
+  <p><label>Name <input id="name" name="name" type="text"></label></p>
+  <p><label>Comment<br><textarea id="comment" name="comment" rows="3" cols="40"></textarea></label></p>
+  <p><label>Language
+    <select id="lang" name="lang">
+      <option value="en">English</option><option value="pl">Polish</option><option value="de">German</option>
+    </select></label></p>
+  <p><label><input id="agree" name="agree" type="checkbox" value="yes"> I agree</label></p>
+  <p>Level:
+    <label><input id="lvl-1" name="level" type="radio" value="1" checked> 1</label>
+    <label><input id="lvl-2" name="level" type="radio" value="2"> 2</label>
+  </p>
+  <p><button id="submit" type="submit">Submit</button></p>
+</form>
+</body></html>

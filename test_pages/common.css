@@ -1,0 +1,9 @@
+body { font-family: sans-serif; margin: 16px; background: #fafafa; color: #222; }
+h1 { font-size: 20px; margin: 0 0 8px; }
+.hint { background: #fff3cd; border: 1px solid #e0c36a; padding: 6px 10px; font-size: 13px; margin-bottom: 12px; }
+button.count { font-size: 14px; padding: 6px 12px; margin: 4px; }
+.box { height: 120px; overflow-y: auto; border: 1px solid #999; background: #fff; padding: 6px; margin: 8px 0; }
+.box p { margin: 0 0 6px; }
+iframe { border: 2px dashed #888; background: #fff; width: 100%; }
+.marker { padding: 4px 0; border-bottom: 1px solid #ddd; }
+nav a { margin-right: 12px; }

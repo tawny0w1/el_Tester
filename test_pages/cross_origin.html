@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>EL Tester: cross-origin iframe</title>
+<link rel="stylesheet" href="common.css"><script src="common.js"></script></head>
+<body>
+<h1>Cross-origin vs same-origin iframe</h1>
+<div class="hint">The same file is loaded twice. "localhost" and "127.0.0.1" are different
+origins, so clicks in the cross-origin frame are a known limit and are NOT mirrored.</div>
+<nav><a id="link-index" href="index.html">Index</a></nav>
+<h2>Same origin</h2>
+<iframe id="frame-same" src="frame2.html" height="260"></iframe>
+<h2>Cross origin: <span id="cross-host"></span></h2>
+<iframe id="frame-cross" height="260"></iframe>
+<script>
+  // Load frame2.html from "the other" host name, so the origin differs
+  var other = location.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
+  var src = location.protocol + '//' + other + ':' + location.port + '/frame2.html';
+  document.getElementById('cross-host').textContent = src;
+  document.getElementById('frame-cross').src = src;
+</script>
+</body></html>

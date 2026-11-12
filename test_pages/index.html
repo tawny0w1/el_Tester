@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>EL Tester: index</title>
+<link rel="stylesheet" href="common.css"><script src="common.js"></script></head>
+<body>
+<h1>EL Tester test pages</h1>
+<div class="hint">Checks: page scroll (item 1), button clicks, link navigation (item 6).
+Scroll this page and click the buttons on the LEFT; the RIGHT should show the same scroll and counters.</div>
+<nav id="nav">
+  <a id="link-form" href="form.html">Form</a>
+  <a id="link-nested" href="nested.html">Nested iframes</a>
+  <a id="link-cross" href="cross_origin.html">Cross-origin iframe</a>
+  <a id="link-page2" href="page2.html">Page 2</a>
+</nav>
+<p>
+  <button id="btn-a" class="count">Button A</button>
+  <button id="btn-b" class="count">Button B</button>
+</p>
+<div id="markers"></div>
+<p><button id="btn-bottom" class="count">Bottom button</button></p>
+<script>
+  // Tall page: numbered markers make it easy to compare scroll positions
+  var m = document.getElementById('markers');
+  for (var i = 1; i <= 120; i++) {
+    var d = document.createElement('div');
+    d.className = 'marker'; d.textContent = 'Marker ' + i;
+    m.appendChild(d);
+  }
+</script>
+</body></html>

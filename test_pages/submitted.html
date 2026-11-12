@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>EL Tester: submitted</title>
+<link rel="stylesheet" href="common.css"></head>
+<body>
+<h1>Form submitted</h1>
+<div class="hint">Both windows should show this page with the same values.</div>
+<pre id="values"></pre>
+<nav><a id="link-form" href="form.html">Back to form</a></nav>
+<script>
+  var out = [];
+  new URLSearchParams(location.search).forEach(function (v, k) { out.push(k + ' = ' + v); });
+  document.getElementById('values').textContent = out.join('\n') || '(no values)';
+</script>
+</body></html>

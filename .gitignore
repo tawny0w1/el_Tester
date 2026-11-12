@@ -1,0 +1,6 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Bug reports database and screenshots (local data, not code)
+bug_data/

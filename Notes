@@ -1,0 +1,9 @@
+Notes
+
+todo:
+
+1. chromium windows resizing and positioning should be correct. - DONE
+2. Video plyer should start and stop - DONE, Message is displayed instead as double video playback is chaotic
+3. flipped panel should be clickable - DONE
+4. Drag and drop should be synchronized -DONE
+5. Test site on cloudflare: https://testpages.strix-aluco.workers.dev , test review360 link: https://360.eu.articulate.com/review/content/1e64fc6d-b59c-4abf-8e4e-dfdbfd41838b/review
