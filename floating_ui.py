@@ -77,7 +77,7 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
     right_var = StringVar(value="")
     url_rows = Frame(frame, bg="#222")
     url_rows.pack(side=LEFT, padx=(6, 4), pady=2)
-    for row, (label, var) in enumerate((("Left", left_var), ("Right", right_var))):
+    for row, (label, var) in enumerate((("Source", left_var), ("Target", right_var))):
         Label(url_rows, text=label, bg="#222", fg="#fff").grid(row=row, column=0, sticky="w", padx=(0, 4))
         entry = Entry(url_rows, textvariable=var, width=57)  # leaves room for the tool menu and buttons in WIDTH
         entry.grid(row=row, column=1, pady=1)
