@@ -94,7 +94,7 @@ class PdfExporter:
             ("Severity", report.severity.value), ("Status", report.status.value),
             ("Resolution", report.resolution.value or "-"), ("Engine", report.engine),
             ("Created", report.created_at.strftime("%Y-%m-%d %H:%M")),
-            ("Source URL", report.url_left), ("Target URL", report.url_right),
+            ("Source URL", report.source_url), ("Target URL", report.target_url),
         ]
         fields = Table([[Paragraph(label, self.label_style), self._text(value)] for label, value in rows],
                        colWidths=[28 * mm, width - 28 * mm])
@@ -118,7 +118,7 @@ class PdfExporter:
         cell_width = (width - GAP) / 2
         image_height = max(max_height - 6 * mm, 20 * mm)  # 6 mm: the "Left"/"Right" label row
         cells = []
-        for label, shot in (("Source", report.screenshot_left), ("Target", report.screenshot_right)):
+        for label, shot in (("Source", report.source_screenshot), ("Target", report.target_screenshot)):
             if shot and Path(shot).exists():
                 image = Image(shot)
                 scale = min(cell_width / image.imageWidth, image_height / image.imageHeight)

@@ -14,7 +14,7 @@ from reports.repository import SqliteBugRepository
 
 
 def make_report() -> BugReport:
-    return BugReport(engine="selenium", url_left="http://localhost/a", url_right="http://127.0.0.1/a",
+    return BugReport(engine="selenium", source_url="http://localhost/a", target_url="http://127.0.0.1/a",
                      summary="Typo on slide 3")
 
 
@@ -40,12 +40,12 @@ def folder(tmp_path: Path) -> Path:
 # File names
 
 def test_bug_paths_contain_the_padded_id(folder: Path) -> None:
-    assert bug_screenshot_paths(folder, 7) == (folder / "bug_00007_left.png", folder / "bug_00007_right.png")
+    assert bug_screenshot_paths(folder, 7) == (folder / "bug_00007_source.png", folder / "bug_00007_target.png")
 
 
 def test_adhoc_paths_are_named_by_time_to_the_millisecond(folder: Path) -> None:
     left, right = adhoc_screenshot_paths(folder, datetime(2026, 11, 8, 14, 30, 5, 123456))
-    assert (left.name, right.name) == ("shot_20261108_143005_123_left.png", "shot_20261108_143005_123_right.png")
+    assert (left.name, right.name) == ("shot_20261108_143005_123_source.png", "shot_20261108_143005_123_target.png")
 
 
 # Both screenshots saved to a local folder, with the bug's database ID in the file name
@@ -62,15 +62,15 @@ def test_report_stores_the_screenshot_paths_in_the_database(repo: SqliteBugRepos
     saved = BugReporter(repo, fake_take_screenshots, folder).report(make_report())
     stored = repo.get(saved.id)  # type: ignore[arg-type]
     assert stored == saved
-    assert stored is not None and stored.screenshot_left and stored.screenshot_right
-    assert Path(stored.screenshot_left).exists() and Path(stored.screenshot_right).exists()
+    assert stored is not None and stored.source_screenshot and stored.target_screenshot
+    assert Path(stored.source_screenshot).exists() and Path(stored.target_screenshot).exists()
 
 
 def test_report_is_kept_without_paths_when_screenshots_fail(repo: SqliteBugRepository, folder: Path) -> None:
     saved = BugReporter(repo, failing_take_screenshots, folder).report(make_report())
     stored = repo.get(saved.id)  # type: ignore[arg-type]
     assert stored is not None
-    assert stored.screenshot_left is None and stored.screenshot_right is None
+    assert stored.source_screenshot is None and stored.target_screenshot is None
 
 
 # The toolbar's Screenshot button: a pair with no database entry
@@ -78,5 +78,5 @@ def test_report_is_kept_without_paths_when_screenshots_fail(repo: SqliteBugRepos
 def test_screenshot_saves_a_pair_without_a_report(repo: SqliteBugRepository, folder: Path) -> None:
     left, right = BugReporter(repo, fake_take_screenshots, folder).screenshot()
     assert left.exists() and right.exists()
-    assert left.name.startswith("shot_") and left.name.endswith("_left.png")
+    assert left.name.startswith("shot_") and left.name.endswith("_source.png")
     assert repo.list_all() == []

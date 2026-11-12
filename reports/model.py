@@ -41,21 +41,21 @@ class Resolution(str, Enum):
 
 @dataclass
 class BugReport:
-    """One bug found while comparing the left and right course versions.
+    """One bug found while comparing the source and target course versions.
 
     id is None until the repository saves the report; the database then
     assigns it. Screenshot paths stay None until the screenshots are saved,
     because their file names contain the id.
     """
     engine: str  # "selenium" or "playwright"
-    url_left: str
-    url_right: str
+    source_url: str
+    target_url: str
     summary: str  # one line, like Bugzilla's summary
     description: str = ""
     severity: Severity = Severity.NORMAL
     status: Status = Status.UNCONFIRMED  # a tester's report is not triaged yet
     resolution: Resolution = Resolution.NONE
-    screenshot_left: str | None = None
-    screenshot_right: str | None = None
+    source_screenshot: str | None = None
+    target_screenshot: str | None = None
     created_at: datetime = field(default_factory=datetime.now)
     id: int | None = None

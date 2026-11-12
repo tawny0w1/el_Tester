@@ -653,15 +653,15 @@ def on_screenshot() -> str:
 def save_bug(summary: str, description: str, severity: Severity) -> tuple[BugReport, str]:
     """Store the report with both URLs and screenshots; also the text the toolbar shows."""
     engine = active_engine
-    url_left, url_right = engine.current_urls() if engine else ("", "")
+    source_url, target_url = engine.current_urls() if engine else ("", "")
     report = bug_reporter.report(BugReport(
-        engine=engine.name if engine else "none", url_left=url_left, url_right=url_right,
+        engine=engine.name if engine else "none", source_url=source_url, target_url=target_url,
         summary=summary, description=description, severity=severity,
     ))
-    if report.screenshot_left is None:
+    if report.source_screenshot is None:
         print(f"Bug {report.id:05d} saved WITHOUT screenshots (see the error above)")
         return report, f"Bug {report.id:05d} ⚠"
-    print(f"Bug {report.id:05d} saved: {summary}\n {report.screenshot_left}\n {report.screenshot_right}")
+    print(f"Bug {report.id:05d} saved: {summary}\n {report.source_screenshot}\n {report.target_screenshot}")
     return report, f"Bug {report.id:05d} ✓"
 
 

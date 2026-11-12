@@ -51,24 +51,24 @@ class BugRepository(ABC):
 
 # Every BugReport field except id, in table column order
 _COLUMNS = (
-    "created_at", "engine", "url_left", "url_right", "summary", "description",
-    "severity", "status", "resolution", "screenshot_left", "screenshot_right",
+    "created_at", "engine", "source_url", "target_url", "summary", "description",
+    "severity", "status", "resolution", "source_screenshot", "target_screenshot",
 )
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS bugs (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    created_at       TEXT NOT NULL,
-    engine           TEXT NOT NULL,
-    url_left         TEXT NOT NULL,
-    url_right        TEXT NOT NULL,
-    summary          TEXT NOT NULL,
-    description      TEXT NOT NULL,
-    severity         TEXT NOT NULL,
-    status           TEXT NOT NULL,
-    resolution       TEXT NOT NULL,
-    screenshot_left  TEXT,
-    screenshot_right TEXT
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at        TEXT NOT NULL,
+    engine            TEXT NOT NULL,
+    source_url        TEXT NOT NULL,
+    target_url        TEXT NOT NULL,
+    summary           TEXT NOT NULL,
+    description       TEXT NOT NULL,
+    severity          TEXT NOT NULL,
+    status            TEXT NOT NULL,
+    resolution        TEXT NOT NULL,
+    source_screenshot TEXT,
+    target_screenshot TEXT
 )
 """
 
@@ -144,9 +144,9 @@ class SqliteBugRepository(BugRepository):
     def _to_row(report: BugReport) -> tuple[object, ...]:
         """BugReport -> column values in _COLUMNS order."""
         return (
-            report.created_at.isoformat(), report.engine, report.url_left, report.url_right,
+            report.created_at.isoformat(), report.engine, report.source_url, report.target_url,
             report.summary, report.description, report.severity.value, report.status.value,
-            report.resolution.value, report.screenshot_left, report.screenshot_right,
+            report.resolution.value, report.source_screenshot, report.target_screenshot,
         )
 
     @staticmethod
@@ -155,13 +155,13 @@ class SqliteBugRepository(BugRepository):
             id=row["id"],
             created_at=datetime.fromisoformat(row["created_at"]),
             engine=row["engine"],
-            url_left=row["url_left"],
-            url_right=row["url_right"],
+            source_url=row["source_url"],
+            target_url=row["target_url"],
             summary=row["summary"],
             description=row["description"],
             severity=Severity(row["severity"]),
             status=Status(row["status"]),
             resolution=Resolution(row["resolution"]),
-            screenshot_left=row["screenshot_left"],
-            screenshot_right=row["screenshot_right"],
+            source_screenshot=row["source_screenshot"],
+            target_screenshot=row["target_screenshot"],
         )

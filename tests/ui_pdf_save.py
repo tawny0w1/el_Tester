@@ -51,7 +51,7 @@ def main() -> int:
     c = Checks()
     tmp = Path(tempfile.mkdtemp(prefix="ui_pdf_"))
     pdf = tmp / "bug_00099.pdf"
-    PdfExporter().export([BugReport(engine="selenium", url_left="a", url_right="b", summary="sample", id=99)], pdf)
+    PdfExporter().export([BugReport(engine="selenium", source_url="a", target_url="b", summary="sample", id=99)], pdf)
     target = tmp / "chosen" / "copy.pdf"
     target.parent.mkdir()
     calls: list[tuple[str, str, str]] = []

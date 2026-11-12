@@ -17,7 +17,7 @@ pypdf = pytest.importorskip("pypdf")  # reads the PDF back to check it
 
 
 def make_saved_report(report_id: int) -> BugReport:
-    return BugReport(engine="selenium", url_left="http://localhost/a", url_right="http://127.0.0.1/a",
+    return BugReport(engine="selenium", source_url="http://localhost/a", target_url="http://127.0.0.1/a",
                      summary=f"bug {report_id}", id=report_id)
 
 

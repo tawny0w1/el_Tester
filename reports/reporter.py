@@ -23,18 +23,18 @@ DEFAULT_SCREENSHOT_DIR = DATA_DIR / "screenshots"
 
 
 def bug_screenshot_paths(folder: Path, report_id: int) -> tuple[Path, Path]:
-    """bug_00007_left.png and bug_00007_right.png for report 7."""
+    """bug_00007_source.png and bug_00007_target.png for report 7."""
     stem = f"bug_{report_id:05d}"
-    return folder / f"{stem}_left.png", folder / f"{stem}_right.png"
+    return folder / f"{stem}_source.png", folder / f"{stem}_target.png"
 
 
 def adhoc_screenshot_paths(folder: Path, taken_at: datetime) -> tuple[Path, Path]:
-    """shot_20261108_143005_123_left.png: a pair with no report, named by time.
+    """shot_20261108_143005_123_source.png: a pair with no report, named by time.
 
     Milliseconds are included so two clicks in the same second don't overwrite each other.
     """
     stem = "shot_" + taken_at.strftime("%Y%m%d_%H%M%S_") + f"{taken_at.microsecond // 1000:03d}"
-    return folder / f"{stem}_left.png", folder / f"{stem}_right.png"
+    return folder / f"{stem}_source.png", folder / f"{stem}_target.png"
 
 
 class BugReporter:
@@ -62,7 +62,7 @@ class BugReporter:
         except Exception:
             log.exception("Screenshots for bug %d failed; report saved without them", saved.id)
             return saved
-        with_paths = replace(saved, screenshot_left=str(left), screenshot_right=str(right))
+        with_paths = replace(saved, source_screenshot=str(left), target_screenshot=str(right))
         self.repository.update(with_paths)
         return with_paths
 

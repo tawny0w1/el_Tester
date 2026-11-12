@@ -15,7 +15,7 @@ from reports.repository import SqliteBugRepository
 
 
 def make_report(summary: str = "Typo on slide 3") -> BugReport:
-    return BugReport(engine="selenium", url_left="http://localhost/a", url_right="http://127.0.0.1/a",
+    return BugReport(engine="selenium", source_url="http://localhost/a", target_url="http://127.0.0.1/a",
                      summary=summary)
 
 
