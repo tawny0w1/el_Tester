@@ -40,14 +40,27 @@ def find_window(title_part: str) -> tuple[int, int, int]:
 
 def grab(title_part: str, out_path: str) -> None:
     window, width, height = find_window(title_part)
+    _save(lambda x11, display: window, width, height, out_path)
+
+
+def grab_root(out_path: str, width: int = 2000, height: int = 1200) -> None:
+    """The top-left width x height of the whole screen (e.g. to see where windows sit side by side)."""
+    _save(lambda x11, display: x11.XDefaultRootWindow(display), width, height, out_path)
+
+
+def _save(get_window, width: int, height: int, out_path: str) -> None:
+    """Copy the window's pixels (XGetImage) to a PNG. get_window(x11, display) -> window id."""
     x11 = ctypes.cdll.LoadLibrary(ctypes.util.find_library("X11"))
     x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    x11.XDefaultRootWindow.restype = ctypes.c_ulong
     x11.XGetImage.restype = ctypes.POINTER(XImage)
     x11.XGetImage.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_int,
                               ctypes.c_uint, ctypes.c_uint, ctypes.c_ulong, ctypes.c_int]
     x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
     display = x11.XOpenDisplay(None)
     try:
+        window = get_window(x11, display)
         image = x11.XGetImage(display, window, 0, 0, width, height, ALL_PLANES, Z_PIXMAP).contents
         raw = ctypes.string_at(image.data, image.bytes_per_line * height)
         Image.frombuffer("RGBX", (width, height), raw, "raw", "BGRX", image.bytes_per_line, 1) \

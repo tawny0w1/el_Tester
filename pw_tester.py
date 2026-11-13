@@ -19,6 +19,7 @@ from typing import Any, Callable
 from playwright.sync_api import Browser, BrowserContext, Frame, Page, Playwright, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
+from engine import WINDOW_HEIGHT, WINDOW_POSITION_JS, WINDOW_WIDTH, right_window_x
 from js_loader import load_js
 
 SYSTEM_CHROMIUM = "/usr/bin/chromium"  # no Playwright browser download in the container
@@ -62,17 +63,32 @@ class PwTester:
     """Two Chromium windows; the left page's actions are replayed on the right."""
 
     def __init__(self, playwright: Playwright, headless: bool = False) -> None:
-        self._browsers: list[Browser] = [self._launch(playwright, x, headless) for x in (0, 990)]
+        self._browsers: list[Browser] = [self._launch(playwright, x, headless) for x in (0, WINDOW_WIDTH)]
         # no_viewport: the page follows the window size, as in the Selenium version
         left_context: BrowserContext = self._browsers[0].new_context(no_viewport=True)
         left_context.expose_binding("reportAction", self._on_action)
         left_context.add_init_script(script=load_js("xpath.js", "pw_tracker.js"))
         self.left: Page = left_context.new_page()
         self.right: Page = self._browsers[1].new_context(no_viewport=True).new_page()
+        if not headless:  # a headless window isn't on the screen
+            self._align_right_window()
+
+    def _align_right_window(self) -> None:
+        """Move the right window so it touches the left one (see el_tester.align_right_window).
+
+        Playwright has no API to move a window, so this uses Chrome's own
+        DevTools commands through a CDP session on the right page.
+        """
+        left_x, left_y, left_width = self.left.evaluate(WINDOW_POSITION_JS)
+        cdp = self.right.context.new_cdp_session(self.right)
+        window_id = cdp.send("Browser.getWindowForTarget")["windowId"]
+        cdp.send("Browser.setWindowBounds",
+                 {"windowId": window_id, "bounds": {"left": right_window_x(left_x, left_width), "top": left_y}})
+        cdp.detach()
 
     @staticmethod
     def _launch(playwright: Playwright, x: int, headless: bool) -> Browser:
-        args = [f"--window-position={x},0", "--window-size=930,1080"]
+        args = [f"--window-position={x},0", f"--window-size={WINDOW_WIDTH},{WINDOW_HEIGHT}"]
         ignored_defaults: list[str] = []
         if Path("/.dockerenv").exists():  # same reasons as selenium_worker
             args += ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]

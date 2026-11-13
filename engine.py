@@ -6,6 +6,24 @@ knowing how each one drives the browsers.
 from pathlib import Path
 from typing import Protocol
 
+# Both engines open two windows of this size side by side (measured on the
+# tester's screen, 2026-11-13: a 1200 px high display with a top bar and a dock)
+WINDOW_WIDTH = 930
+WINDOW_HEIGHT = 1080
+# Chromium draws its own window frame on Linux, with an invisible 16 px shadow
+# on each side: a window reported at x=50, 930 wide, is visible from 66 to 964.
+FRAME_SHADOW_PX = 16
+WINDOW_POSITION_JS = "[window.screenX, window.screenY, window.outerWidth]"  # where the window really is
+
+
+def right_window_x(left_x: int, left_width: int) -> int:
+    """x for the right window so its visible edge touches the left window's visible edge.
+
+    The outer rectangles overlap by both shadows: the left one's right shadow
+    and the right one's left shadow.
+    """
+    return left_x + left_width - 2 * FRAME_SHADOW_PX
+
 
 class Engine(Protocol):
     name: str  # "selenium" or "playwright", stored in BugReport.engine

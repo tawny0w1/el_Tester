@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 from queue import Empty, Queue
 from typing import Any, Callable
-from engine import Engine
+from engine import WINDOW_HEIGHT, WINDOW_POSITION_JS, WINDOW_WIDTH, Engine, right_window_x
 from js_loader import load_js
 from reports.model import BugDraft, BugReport
 from reports.pdf_exporter import PdfExporter, pdf_path_for
@@ -156,6 +156,16 @@ def current_url(driver: webdriver.Chrome) -> str:
         return ""
 
 
+def align_right_window(driver_left: webdriver.Chrome, driver_right: webdriver.Chrome) -> None:
+    """Move the right window so it touches the left one, where the window manager really put it.
+
+    The left window is asked for x=0, but the window manager may move it (past
+    a dock, for example), so its position is read back instead of assumed.
+    """
+    left_x, left_y, left_width = driver_left.execute_script(f"return {WINDOW_POSITION_JS}")
+    driver_right.set_window_position(right_window_x(left_x, left_width), left_y)
+
+
 def selenium_worker(engine: SeleniumEngine) -> None:
     """Main Selenium thread - waits for URLs on engine.urls, then runs synchronization.
 
@@ -165,12 +175,12 @@ def selenium_worker(engine: SeleniumEngine) -> None:
 
     # Set up Chrome options
     options_left = Options()
-    options_left.add_argument("--window-size=930,1080")
+    options_left.add_argument(f"--window-size={WINDOW_WIDTH},{WINDOW_HEIGHT}")
     options_left.add_argument("--window-position=0,0")
 
     options_right = Options()
-    options_right.add_argument("--window-size=930,1080")
-    options_right.add_argument("--window-position=990,0")
+    options_right.add_argument(f"--window-size={WINDOW_WIDTH},{WINDOW_HEIGHT}")
+    options_right.add_argument(f"--window-position={WINDOW_WIDTH},0")  # moved next to the left one below
 
     # Only inside Docker: the container blocks the user namespaces Chromium's
     # sandbox needs, Docker's /dev/shm is only 64 MB, and there is no GPU
@@ -188,6 +198,7 @@ def selenium_worker(engine: SeleniumEngine) -> None:
     driver_left = webdriver.Chrome(service=service, options=options_left)
     driver_right = webdriver.Chrome(service=service, options=options_right)
     engine.drivers = (driver_left, driver_right)
+    align_right_window(driver_left, driver_right)
 
     time.sleep(1)
 
@@ -198,25 +209,6 @@ def selenium_worker(engine: SeleniumEngine) -> None:
         engine.quit_drivers()
         return
     print(f"Selenium thread: received URLs: {url_to_test}")
-
-    # Arrange the windows side by side (optional)
-    time.sleep(0.5)
-
-    #driver_left.set_window_size(960, 1080)  # Adjust based on screen resolution
-    time.sleep(0.5)
-    #driver_left.set_window_position(0, 0)
-    time.sleep(0.5)
-    #driver_right.set_window_size(960, 1080)  # Adjust based on screen resolution
-    time.sleep(0.5)
-    #driver_right.set_window_position(0, 960, windowHandle='current')  # [web:15]
-    # Retrieve current window position
-    pos = driver_right.get_window_position()  # returns dict like {'x': 150, 'y': 200} [web:2]
-
-    # Verify position
-    #assert pos['x'] == 0 and posStringVar['y'] == 960, f"Window not at expected position: {pos}"
-    #print(f"Window position verified at ({pos['x']}, {pos['y']})")
-
-    time.sleep(1)
 
     # Function to find iframe and extract its src URL
     def find_iframe_src(driver, url, iframe_class):
