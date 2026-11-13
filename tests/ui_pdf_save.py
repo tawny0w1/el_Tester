@@ -24,7 +24,7 @@ from pathlib import Path
 
 from helpers import PROJECT_DIR, Checks
 import floating_ui
-from reports.model import BugReport, Severity
+from reports.model import BugDraft, BugReport
 from reports.pdf_exporter import PdfExporter
 
 TIMEOUT_S = 40
@@ -54,10 +54,13 @@ def main() -> int:
     PdfExporter().export([BugReport(engine="selenium", source_url="a", target_url="b", summary="sample", id=99)], pdf)
     target = tmp / "chosen" / "copy.pdf"
     target.parent.mkdir()
-    calls: list[tuple[str, str, str]] = []
+    calls: list[BugDraft] = []
+    # The source is as long as a real course player URL, to check that the field shows its end
+    urls = ("http://localhost:8000/review/uploads/" + "x" * 90 + "/index.html#/lessons/abc",
+            "http://127.0.0.1:8000/index.html#/lessons/abc")
 
-    def fake_report_pdf(summary: str, description: str, severity: Severity) -> tuple[str, Path | None]:
-        calls.append((summary, description, severity.value))
+    def fake_report_pdf(draft: BugDraft) -> tuple[str, Path | None]:
+        calls.append(draft)
         time.sleep(0.5)  # like the real save: screenshots take a moment
         return "Bug 00099 ✓", pdf
 
@@ -67,7 +70,15 @@ def main() -> int:
 
         def fill_form() -> None:
             form = next(w for w in root.winfo_children() if w.winfo_class() == "Toplevel")
-            find(form, "Entry")[0].insert(0, "Zły przycisk Dalej")
+            entries = find(form, "Entry")
+            c.check("form: Source and Target URL prefilled with the windows' pages",
+                    [e.get() for e in entries[1:3]] == list(urls), [e.get() for e in entries])
+            root.update()
+            c.check("form: a long URL shows its end (#/lessons/...)", entries[1].xview()[1] == 1.0
+                    and entries[1].xview()[0] > 0, entries[1].xview())
+            entries[0].insert(0, "Zły przycisk Dalej")
+            entries[2].delete(0, "end")
+            entries[2].insert(0, "http://127.0.0.1:8000/edited.html")  # the tester corrects one
             find(form, "Text")[0].insert("1.0", "Opis błędu")
             buttons = [b.cget("text") for b in find(form, "Button")]
             c.check("form: Save and create PDF next to Save", buttons == ["Cancel", "Save and create PDF", "Save"], buttons)
@@ -96,7 +107,10 @@ def main() -> int:
             c.check("copy written where chosen", target.exists() and target.read_bytes() == pdf.read_bytes())
             c.check("toolbar shows PDF saved", find(root, "Button", "PDF saved ✓") != [],
                     [b.cget("text") for b in find(root, "Button")])
-            c.check("app callback got the form's fields", calls == [("Zły przycisk Dalej", "Opis błędu", "normal")], calls)
+            c.check("app callback got the form's fields, edited URL included",
+                    [(d.summary, d.description, d.severity.value, d.source_url, d.target_url) for d in calls]
+                    == [("Zły przycisk Dalej", "Opis błędu", "normal", urls[0], "http://127.0.0.1:8000/edited.html")],
+                    calls)
             root.destroy()
 
         root.after(800, fill_form)
@@ -111,8 +125,8 @@ def main() -> int:
     watchdog = threading.Timer(TIMEOUT_S, lambda: (print(f"TIMEOUT after {TIMEOUT_S} s", flush=True), os._exit(1)))
     watchdog.start()
     try:
-        floating_ui.create_floating_ui(on_report_callback=lambda *fields: "unused",
-                                       on_report_pdf_callback=fake_report_pdf)
+        floating_ui.create_floating_ui(on_report_callback=lambda draft: "unused",
+                                       on_report_pdf_callback=fake_report_pdf, current_urls_callback=lambda: urls)
     finally:
         watchdog.cancel()
         shutil.rmtree(tmp, ignore_errors=True)

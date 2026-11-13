@@ -40,6 +40,21 @@ class Resolution(str, Enum):
 
 
 @dataclass
+class BugDraft:
+    """What the tester filled in on the Report bug form.
+
+    The app turns it into a BugReport by adding the engine; the repository
+    adds the id, the reporter the screenshots. The URLs come prefilled with
+    the pages open in the two windows, and the tester can change them.
+    """
+    summary: str
+    description: str
+    severity: Severity
+    source_url: str
+    target_url: str
+
+
+@dataclass
 class BugReport:
     """One bug found while comparing the source and target course versions.
 

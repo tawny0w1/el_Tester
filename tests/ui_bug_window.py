@@ -47,10 +47,12 @@ def check_edit_form(root: tkinter.Tk, checks: Checks, shots: Path | None) -> Non
     form.wait_visibility()
     root.update()
     checks.check("edit form: title has the padded id", form.title() == "Edit bug 00007", form.title())
-    checks.check("edit form: fields prefilled",
-                 (form.summary_var.get(), form.severity_var.get(), form.status_var.get(),
+    checks.check("edit form: fields prefilled, URLs included",
+                 (form.summary_var.get(), form.source_url_var.get(), form.target_url_var.get(),
+                  form.severity_var.get(), form.status_var.get(),
                   form.resolution_var.get(), form.description_text.get("1.0", "end").strip())
-                 == ("Typo on slide 3", "normal", "UNCONFIRMED", NO_RESOLUTION, "Missing letter"))
+                 == ("Typo on slide 3", "http://localhost/a", "http://127.0.0.1/a",
+                     "normal", "UNCONFIRMED", NO_RESOLUTION, "Missing letter"))
     if shots is not None:
         import xgrab
         xgrab.grab("Edit bug 00007", str(shots / "edit_form.png"))
@@ -61,6 +63,7 @@ def check_edit_form(root: tkinter.Tk, checks: Checks, shots: Path | None) -> Non
                  and form.error_label.cget("text") == "A summary is required")
 
     form.summary_var.set("Typo on slide 4")
+    form.target_url_var.set("http://127.0.0.1/b")
     form.status_var.set(Status.RESOLVED.value)
     form.resolution_var.set(Resolution.FIXED.value)
     form.severity_var.set(Severity.MINOR.value)
@@ -68,7 +71,7 @@ def check_edit_form(root: tkinter.Tk, checks: Checks, shots: Path | None) -> Non
     form.description_text.insert("1.0", "Fixed in v2")
     form.save()
     root.update()
-    expected = BugReport(engine="selenium", source_url="http://localhost/a", target_url="http://127.0.0.1/a",
+    expected = BugReport(engine="selenium", source_url="http://localhost/a", target_url="http://127.0.0.1/b",
                          summary="Typo on slide 4", description="Fixed in v2", severity=Severity.MINOR,
                          status=Status.RESOLVED, resolution=Resolution.FIXED, created_at=report.created_at, id=7)
     checks.check("edit form: Save passes the edited copy", saved == [expected], saved)
@@ -224,6 +227,44 @@ def check_toolbar(checks: Checks, shots: Path | None) -> None:
         root.update()
         lists = [w for w in root.winfo_children() if isinstance(w, BugListWindow)]
         checks.check("Bugs: opens the bug list", len(lists) == 1 and len(lists[0].reports) == 1)
+        # The Edit form is drawn above the always-on-top toolbar, like the Report bug form
+        lists[0].table.selection_set(lists[0].table.get_children()[0])
+        lists[0].edit_selected()
+        edit_form = next(w for w in lists[0].winfo_children() if isinstance(w, EditBugForm))
+        edit_form.wait_visibility()
+        root.update()
+        # Control: an ordinary window stays under the toolbar, so this check can tell the difference
+        plain = tkinter.Toplevel(root)
+        plain.wait_visibility()
+        root.update()
+        order = list(root.tk.splitlist(root.tk.call("wm", "stackorder", ".")))  # bottom to top
+        checks.check("stacking control: an ordinary window is under the toolbar",
+                     str(plain) in order and order.index(str(plain)) < order.index("."), order)
+        plain.destroy()
+        root.update()
+        order = list(root.tk.splitlist(root.tk.call("wm", "stackorder", ".")))
+        names = [".", str(lists[0]), str(edit_form)]  # toolbar, bug list, Edit form
+        checks.check("stacking: bug list above the toolbar, Edit form above both",
+                     all(name in order for name in names) and order.index(names[0]) < order.index(names[1])
+                     < order.index(names[2]), order)
+        edit_form.destroy()
+
+        # Delete's Yes/No question and Export's save dialog open above the bug list (real dialogs,
+        # inspected from after() while they wait for an answer, then cancelled)
+        def dialog_on_top(dialog: str, close: str, name: str) -> None:
+            order = list(root.tk.splitlist(root.tk.call("wm", "stackorder", ".")))
+            checks.check(f"stacking: {name} above the bug list",
+                         dialog in order and order.index(dialog) > order.index(str(lists[0])), order)
+            root.tk.call(close, "invoke")
+
+        bug_list = lists[0]
+        root.after(800, lambda: dialog_on_top(f"{bug_list}.__tk__messagebox", f"{bug_list}.__tk__messagebox.no",
+                                              "Delete's Yes/No question"))
+        bug_list.delete_selected()  # returns when the question is answered (No)
+        checks.check("Delete: No keeps the bug", len(repo.list_all()) == 2)
+        root.after(800, lambda: dialog_on_top(".__tk_filedialog", ".__tk_filedialog.contents.f2.cancel",
+                                              "Export's save dialog"))
+        bug_list.export_pdf()  # returns when the dialog is cancelled
         repo.add(BugReport(engine="selenium", source_url="a", target_url="b", summary="Reported later"))
         button(root, "Bugs").invoke()
         root.update()

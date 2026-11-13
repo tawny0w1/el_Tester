@@ -24,7 +24,7 @@ install_test_doubles()  # headless Selenium, no Tk toolbar; before importing el_
 import el_tester as app  # noqa: E402
 from pw_tester import PwEngine  # noqa: E402
 from reports import pdf_exporter  # noqa: E402
-from reports.model import Severity  # noqa: E402
+from reports.model import BugDraft, Severity  # noqa: E402
 from reports.reporter import BugReporter  # noqa: E402
 from reports.repository import SqliteBugRepository  # noqa: E402
 
@@ -39,7 +39,7 @@ def images_drawn(page: pypdf.PageObject) -> int:
 def run(left: str, right: str, c: Checks) -> None:
     app.on_load_url(left, right, "Selenium")
     wait_for(lambda: app.active_engine.current_urls() == (left, right), 40)
-    message, pdf = app.on_report_bug_pdf("Zły przycisk", "Opis: ąęł", Severity.MAJOR)
+    message, pdf = app.on_report_bug_pdf(BugDraft("Zły przycisk", "Opis: ąęł", Severity.MAJOR, *app.current_urls()))
     c.check("Selenium: bug saved with screenshots", message == "Bug 00001 ✓", message)
     reader = pypdf.PdfReader(pdf)
     c.check("Selenium: bug_00001.pdf, one page, one bookmark",
@@ -52,7 +52,7 @@ def run(left: str, right: str, c: Checks) -> None:
 
     app.on_load_url(left, right, "Playwright")
     wait_for(lambda: app.active_engine.name == "playwright" and app.active_engine.current_urls() == (left, right), 40)
-    message, pdf = app.on_report_bug_pdf("Playwright bug", "", Severity.NORMAL)
+    message, pdf = app.on_report_bug_pdf(BugDraft("Playwright bug", "", Severity.NORMAL, *app.current_urls()))
     c.check("Playwright: bug saved with screenshots", message == "Bug 00002 ✓", message)
     page = pypdf.PdfReader(pdf).pages[0]
     text = page.extract_text().replace("\n", "")

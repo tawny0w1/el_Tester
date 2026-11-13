@@ -63,6 +63,7 @@ class BugListWindow(Toplevel):
         self.save_dir = default_save_dir()
         self.title("Bug reports")
         self.geometry("1000x720")
+        self.attributes("-topmost", True)  # above the always-on-top toolbar, which would cover its top
 
         bar = Frame(self, padx=8, pady=6)
         bar.pack(fill="x")

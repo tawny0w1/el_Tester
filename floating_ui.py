@@ -9,15 +9,17 @@ import traceback
 
 from bug_window import BugListWindow, default_save_dir
 from report_form import ReportBugForm
-from reports.model import Severity
+from reports.model import BugDraft
 from reports.repository import BugRepository
 
 # The app's work for the Screenshot and Report bug buttons. Each returns a
 # short result ("Saved", "Bug 00007 ✓") that the button shows for a moment.
 OnScreenshot = Callable[[], str]
-OnReport = Callable[[str, str, Severity], str]  # (summary, description, severity)
+OnReport = Callable[[BugDraft], str]
 # Like OnReport, and also builds the bug's PDF: returns (result text, PDF path or None if it failed)
-OnReportPdf = Callable[[str, str, Severity], tuple[str, Path | None]]
+OnReportPdf = Callable[[BugDraft], tuple[str, Path | None]]
+# The (source, target) pages open in the two windows, to prefill the Report bug form
+CurrentUrls = Callable[[], tuple[str, str]]
 RESULT_SHOWN_MS = 3000
 DEFAULT_ENGINES: tuple[str, ...] = ("Selenium", "Playwright")  # first = default
 
@@ -31,7 +33,8 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
                        on_report_callback: OnReport | None = None,
                        engine_names: Sequence[str] = DEFAULT_ENGINES,
                        on_report_pdf_callback: OnReportPdf | None = None,
-                       bug_repository: BugRepository | None = None):
+                       bug_repository: BugRepository | None = None,
+                       current_urls_callback: CurrentUrls | None = None):
     root = Tk()
     if root.tk.call("tk", "windowingsystem") == "x11":
         # A "dock" window has no decorations, and unlike an override-redirect
@@ -145,9 +148,9 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
     # Tk thread with the work's result (e.g. to show a dialog) and returns the
     # text to show; without it the result is that text.
     def run_in_background(button: Button, work: Callable[[], Any],
-                          on_done: Callable[[Any], str] | None = None) -> None:
+                          on_done: Callable[[Any], str] | None = None, busy_text: str = "Saving…") -> None:
         label = button.cget("text")
-        button.config(text="Saving…", state=DISABLED)  # also blocks a double click
+        button.config(text=busy_text, state=DISABLED)  # also blocks a double click
         results: "Queue[Any]" = Queue()
         failed = object()  # put by the worker when work() raised
 
@@ -212,26 +215,35 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
     report_form: ReportBugForm | None = None
 
     def open_report_form() -> None:
-        nonlocal report_form
+        """Read the windows' URLs off the Tk thread (Playwright may wait while a page
+        loads), then open the form with them."""
         if report_form is not None and report_form.winfo_exists():
             report_form.lift()
             report_form.summary_entry.focus_force()
             return
+        if current_urls_callback is None:
+            show_report_form(("", ""))
+            return
+        run_in_background(btn_report, current_urls_callback, on_done=show_report_form, busy_text="Opening…")
 
-        def save(summary: str, description: str, severity: Severity) -> None:
+    def show_report_form(urls: tuple[str, str]) -> str:
+        """Tk thread: open the form prefilled with urls. Returns the Report bug button's text."""
+        nonlocal report_form
+
+        def save(draft: BugDraft) -> None:
             if on_report_callback is None:
-                print(f"Report bug: no app connected; not saved: {summary!r} ({severity.value})")
+                print(f"Report bug: no app connected; not saved: {draft}")
                 return
-            run_in_background(btn_report, lambda: on_report_callback(summary, description, severity))
+            run_in_background(btn_report, lambda: on_report_callback(draft))
 
-        def save_with_pdf(summary: str, description: str, severity: Severity) -> None:
+        def save_with_pdf(draft: BugDraft) -> None:
             if on_report_pdf_callback is None:
-                print(f"Report bug: no app connected; not saved: {summary!r} ({severity.value})")
+                print(f"Report bug: no app connected; not saved: {draft}")
                 return
-            run_in_background(btn_report, lambda: on_report_pdf_callback(summary, description, severity),
-                              on_done=save_pdf_copy)
+            run_in_background(btn_report, lambda: on_report_pdf_callback(draft), on_done=save_pdf_copy)
 
-        report_form = ReportBugForm(root, on_save=save, on_save_pdf=save_with_pdf)
+        report_form = ReportBugForm(root, on_save=save, on_save_pdf=save_with_pdf, urls=urls)
+        return "Report bug"
 
     # One bug list at a time: a second click brings it to the front with fresh rows
     # (bugs reported since it was opened appear)
@@ -284,11 +296,12 @@ def start_ui_in_thread(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
                        on_report_callback: OnReport | None = None,
                        engine_names: Sequence[str] = DEFAULT_ENGINES,
                        on_report_pdf_callback: OnReportPdf | None = None,
-                       bug_repository: BugRepository | None = None):
+                       bug_repository: BugRepository | None = None,
+                       current_urls_callback: CurrentUrls | None = None):
     t = threading.Thread(target=create_floating_ui,
                          args=(width, height, on_load_callback, on_close_callback,
                                on_screenshot_callback, on_report_callback, engine_names,
-                               on_report_pdf_callback, bug_repository), daemon=True)
+                               on_report_pdf_callback, bug_repository, current_urls_callback), daemon=True)
     t.start()
     return t
 

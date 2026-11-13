@@ -18,7 +18,7 @@ from queue import Empty, Queue
 from typing import Any, Callable
 from engine import Engine
 from js_loader import load_js
-from reports.model import BugReport, Severity
+from reports.model import BugDraft, BugReport
 from reports.pdf_exporter import PdfExporter, pdf_path_for
 from reports.reporter import BugReporter
 from reports.repository import SqliteBugRepository
@@ -650,33 +650,38 @@ def on_screenshot() -> str:
     return "Saved ✓"
 
 
-def save_bug(summary: str, description: str, severity: Severity) -> tuple[BugReport, str]:
-    """Store the report with both URLs and screenshots; also the text the toolbar shows."""
+def current_urls() -> tuple[str, str]:
+    """The pages open in the two windows, to prefill the Report bug form. Runs off the Tk thread."""
     engine = active_engine
-    source_url, target_url = engine.current_urls() if engine else ("", "")
+    return engine.current_urls() if engine else ("", "")
+
+
+def save_bug(draft: BugDraft) -> tuple[BugReport, str]:
+    """Store the report with the form's URLs and both screenshots; also the text the toolbar shows."""
+    engine = active_engine
     report = bug_reporter.report(BugReport(
-        engine=engine.name if engine else "none", source_url=source_url, target_url=target_url,
-        summary=summary, description=description, severity=severity,
+        engine=engine.name if engine else "none", source_url=draft.source_url, target_url=draft.target_url,
+        summary=draft.summary, description=draft.description, severity=draft.severity,
     ))
     if report.source_screenshot is None:
         print(f"Bug {report.id:05d} saved WITHOUT screenshots (see the error above)")
         return report, f"Bug {report.id:05d} ⚠"
-    print(f"Bug {report.id:05d} saved: {summary}\n {report.source_screenshot}\n {report.target_screenshot}")
+    print(f"Bug {report.id:05d} saved: {draft.summary}\n {report.source_screenshot}\n {report.target_screenshot}")
     return report, f"Bug {report.id:05d} ✓"
 
 
-def on_report_bug(summary: str, description: str, severity: Severity) -> str:
+def on_report_bug(draft: BugDraft) -> str:
     """Report bug form's Save. Runs off the Tk thread."""
-    return save_bug(summary, description, severity)[1]
+    return save_bug(draft)[1]
 
 
-def on_report_bug_pdf(summary: str, description: str, severity: Severity) -> tuple[str, Path | None]:
+def on_report_bug_pdf(draft: BugDraft) -> tuple[str, Path | None]:
     """Report bug form's "Save and create PDF": save, then write bug_data/pdf/bug_00007.pdf.
 
     Returns the PDF's path (None if it failed; the bug is saved anyway). The
     toolbar then asks, on the Tk thread, where to save a copy.
     """
-    report, message = save_bug(summary, description, severity)
+    report, message = save_bug(draft)
     pdf = pdf_path_for(report)
     try:
         PdfExporter().export([report], pdf)
@@ -725,5 +730,5 @@ if __name__ == "__main__":
     start_ui_in_thread(on_load_callback=on_load_url, on_close_callback=request_shutdown,
                        on_screenshot_callback=on_screenshot, on_report_callback=on_report_bug,
                        engine_names=list(ENGINES), on_report_pdf_callback=on_report_bug_pdf,
-                       bug_repository=bug_reporter.repository)
+                       bug_repository=bug_reporter.repository, current_urls_callback=current_urls)
     run_app()
