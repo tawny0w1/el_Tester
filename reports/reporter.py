@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Callable
 
 from reports.model import BugReport
+from reports.pdf_exporter import DEFAULT_PDF_DIR, pdf_path_for
 from reports.repository import DATA_DIR, BugRepository
 
 log = logging.getLogger(__name__)
@@ -35,6 +36,22 @@ def adhoc_screenshot_paths(folder: Path, taken_at: datetime) -> tuple[Path, Path
     """
     stem = "shot_" + taken_at.strftime("%Y%m%d_%H%M%S_") + f"{taken_at.microsecond // 1000:03d}"
     return folder / f"{stem}_source.png", folder / f"{stem}_target.png"
+
+
+def delete_report(repository: BugRepository, report: BugReport, pdf_folder: Path = DEFAULT_PDF_DIR) -> bool:
+    """Remove the report from the database, then its two screenshots and its PDF.
+
+    The row goes first, so the bug leaves the list even if a file is already
+    gone. Files that were never made (no screenshots, no PDF) are skipped.
+    Returns False if the report wasn't in the database (deleted already).
+    """
+    assert report.id is not None  # only saved reports can be deleted
+    if not repository.delete(report.id):
+        return False
+    for path in (report.source_screenshot, report.target_screenshot, pdf_path_for(report, pdf_folder)):
+        if path:
+            Path(path).unlink(missing_ok=True)
+    return True
 
 
 class BugReporter:

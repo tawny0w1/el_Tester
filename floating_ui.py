@@ -3,13 +3,14 @@ from pathlib import Path
 from queue import Empty, Queue
 from tkinter import filedialog
 from typing import Any, Callable, Sequence
-import os
 import shutil
 import threading
 import traceback
 
+from bug_window import BugListWindow, default_save_dir
 from report_form import ReportBugForm
 from reports.model import Severity
+from reports.repository import BugRepository
 
 # The app's work for the Screenshot and Report bug buttons. Each returns a
 # short result ("Saved", "Bug 00007 ✓") that the button shows for a moment.
@@ -20,14 +21,17 @@ OnReportPdf = Callable[[str, str, Severity], tuple[str, Path | None]]
 RESULT_SHOWN_MS = 3000
 DEFAULT_ENGINES: tuple[str, ...] = ("Selenium", "Playwright")  # first = default
 
-WIDTH = 1024  # change to 30 for vertical panel (swap with HEIGHT)
-HEIGHT = 70   # two URL rows; change to 200 for vertical panel
+WIDTH = 1331  # 30% wider than the first 1024 px, for longer URL fields
+HEIGHT = 82   # title bar + two URL rows
+TITLE_BAR_HEIGHT = 22  # the grey bar with "EL Tester"; drag it to move the toolbar
+URL_ENTRY_CHARS = 74   # 30% wider than 57; leaves room for the tool menu and buttons in WIDTH
 
 def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_close_callback=None,
                        on_screenshot_callback: OnScreenshot | None = None,
                        on_report_callback: OnReport | None = None,
                        engine_names: Sequence[str] = DEFAULT_ENGINES,
-                       on_report_pdf_callback: OnReportPdf | None = None):
+                       on_report_pdf_callback: OnReportPdf | None = None,
+                       bug_repository: BugRepository | None = None):
     root = Tk()
     if root.tk.call("tk", "windowingsystem") == "x11":
         # A "dock" window has no decorations, and unlike an override-redirect
@@ -43,9 +47,12 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
     root.attributes("-topmost", True)         # always on top
     root.geometry(f"{width}x{height}+50+50")  # initial position
 
-    # Top drag handle (10px, light gray) for easier dragging
-    top_handle = Frame(root, bg="#dddddd", height=10)
+    # Top title bar (light gray) with the app name; it is also the drag handle
+    top_handle = Frame(root, bg="#dddddd", height=TITLE_BAR_HEIGHT)
     top_handle.pack(fill='x', side='top')
+    top_handle.pack_propagate(False)  # keep the fixed height, whatever the label's size
+    title = Label(top_handle, text="EL Tester", bg="#dddddd", fg="#222", font=("TkDefaultFont", 10, "bold"))
+    title.pack()
 
     # make background frame (for button area)
     frame = Frame(root, bg="#222", bd=0)
@@ -68,8 +75,9 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
         offset_x = event.x_root
         offset_y = event.y_root
 
-    top_handle.bind("<ButtonPress-1>", on_press)
-    top_handle.bind("<B1-Motion>", on_drag)
+    for handle in (top_handle, title):  # the title covers part of the bar, so it drags too
+        handle.bind("<ButtonPress-1>", on_press)
+        handle.bind("<B1-Motion>", on_drag)
 
     # Two URL rows: Left, and Right (empty = same URL as Left), to compare two
     # versions of a course that live at different URLs
@@ -79,7 +87,7 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
     url_rows.pack(side=LEFT, padx=(6, 4), pady=2)
     for row, (label, var) in enumerate((("Source", left_var), ("Target", right_var))):
         Label(url_rows, text=label, bg="#222", fg="#fff").grid(row=row, column=0, sticky="w", padx=(0, 4))
-        entry = Entry(url_rows, textvariable=var, width=57)  # leaves room for the tool menu and buttons in WIDTH
+        entry = Entry(url_rows, textvariable=var, width=URL_ENTRY_CHARS)
         entry.grid(row=row, column=1, pady=1)
         # the WM doesn't focus a dock window on click; request focus explicitly
         entry.bind("<Button-1>", lambda e: e.widget.focus_force())
@@ -188,9 +196,7 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
         if pdf is None:  # the bug was saved, the PDF failed (see the terminal)
             return message
         if pdf_dir is None:
-            # In the container the home folder isn't visible on the host, but
-            # the workspace (the project's parent folder) is mounted from it
-            pdf_dir = Path(__file__).resolve().parent.parent if os.path.exists("/.dockerenv") else Path.home()
+            pdf_dir = default_save_dir()
         target = filedialog.asksaveasfilename(
             parent=root, title="Save the bug report PDF", initialdir=str(pdf_dir), initialfile=pdf.name,
             defaultextension=".pdf", filetypes=[("PDF", "*.pdf"), ("All files", "*")])
@@ -227,11 +233,28 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
 
         report_form = ReportBugForm(root, on_save=save, on_save_pdf=save_with_pdf)
 
+    # One bug list at a time: a second click brings it to the front with fresh rows
+    # (bugs reported since it was opened appear)
+    bug_list: BugListWindow | None = None
+
+    def open_bug_list() -> None:
+        nonlocal bug_list
+        if bug_repository is None:
+            print("Bugs: no bug database connected")
+            return
+        if bug_list is not None and bug_list.winfo_exists():
+            bug_list.refresh()
+            bug_list.lift()
+            return
+        bug_list = BugListWindow(root, bug_repository)
+
     # Fixed width (in characters), so the result text doesn't shift the buttons
     btn_shot = Button(frame, text="Screenshot", command=on_screenshot,
                       bg="#fff", fg="#222", bd=0, width=11)
     btn_report = Button(frame, text="Report bug", command=open_report_form,
                         bg="#fff", fg="#222", bd=0, width=11)
+    btn_bugs = Button(frame, text="Bugs", command=open_bug_list,
+                      bg="#fff", fg="#222", bd=0, width=6)
 
     # Close button: destroys the toolbar, then tells the app to shut down
     # (quit both browsers and end the process)
@@ -250,6 +273,7 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
     # Layout: remaining buttons
     btn_shot.pack(side=LEFT, padx=(6,4), pady=6)
     btn_report.pack(side=LEFT, padx=(4,4), pady=6)
+    btn_bugs.pack(side=LEFT, padx=(4,4), pady=6)
     btn_close.pack(side=LEFT, padx=(4,6), pady=6)
 
     # start mainloop (blocking)
@@ -259,11 +283,12 @@ def start_ui_in_thread(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
                        on_screenshot_callback: OnScreenshot | None = None,
                        on_report_callback: OnReport | None = None,
                        engine_names: Sequence[str] = DEFAULT_ENGINES,
-                       on_report_pdf_callback: OnReportPdf | None = None):
+                       on_report_pdf_callback: OnReportPdf | None = None,
+                       bug_repository: BugRepository | None = None):
     t = threading.Thread(target=create_floating_ui,
                          args=(width, height, on_load_callback, on_close_callback,
                                on_screenshot_callback, on_report_callback, engine_names,
-                               on_report_pdf_callback), daemon=True)
+                               on_report_pdf_callback, bug_repository), daemon=True)
     t.start()
     return t
 

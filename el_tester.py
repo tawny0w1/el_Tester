@@ -722,7 +722,8 @@ def run_app() -> None:
 if __name__ == "__main__":
     print("Starting UI thread...")
     from floating_ui import start_ui_in_thread
-    start_ui_in_thread(1024, 70, on_load_url, request_shutdown,
+    start_ui_in_thread(on_load_callback=on_load_url, on_close_callback=request_shutdown,
                        on_screenshot_callback=on_screenshot, on_report_callback=on_report_bug,
-                       engine_names=list(ENGINES), on_report_pdf_callback=on_report_bug_pdf)
+                       engine_names=list(ENGINES), on_report_pdf_callback=on_report_bug_pdf,
+                       bug_repository=bug_reporter.repository)
     run_app()

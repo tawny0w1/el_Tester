@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 from reports.model import BugReport
-from reports.reporter import BugReporter, adhoc_screenshot_paths, bug_screenshot_paths
+from reports.pdf_exporter import pdf_path_for
+from reports.reporter import BugReporter, adhoc_screenshot_paths, bug_screenshot_paths, delete_report
 from reports.repository import SqliteBugRepository
 
 
@@ -80,3 +81,29 @@ def test_screenshot_saves_a_pair_without_a_report(repo: SqliteBugRepository, fol
     assert left.exists() and right.exists()
     assert left.name.startswith("shot_") and left.name.endswith("_source.png")
     assert repo.list_all() == []
+
+
+# Deleting a report from the bug list also removes its files
+
+def test_delete_removes_the_row_screenshots_and_pdf(repo: SqliteBugRepository, folder: Path, tmp_path: Path) -> None:
+    saved = BugReporter(repo, fake_take_screenshots, folder).report(make_report())
+    pdf = pdf_path_for(saved, tmp_path / "pdf")
+    pdf.parent.mkdir()
+    pdf.write_bytes(b"pdf")
+    assert delete_report(repo, saved, tmp_path / "pdf") is True
+    assert repo.get(saved.id) is None  # type: ignore[arg-type]
+    assert not Path(saved.source_screenshot).exists()  # type: ignore[arg-type]
+    assert not Path(saved.target_screenshot).exists()  # type: ignore[arg-type]
+    assert not pdf.exists()
+
+
+def test_delete_works_when_files_were_never_made(repo: SqliteBugRepository, tmp_path: Path) -> None:
+    saved = repo.add(make_report())  # no screenshots, no PDF
+    assert delete_report(repo, saved, tmp_path / "pdf") is True
+    assert repo.get(saved.id) is None  # type: ignore[arg-type]
+
+
+def test_delete_twice_returns_false(repo: SqliteBugRepository, tmp_path: Path) -> None:
+    saved = repo.add(make_report())
+    delete_report(repo, saved, tmp_path / "pdf")
+    assert delete_report(repo, saved, tmp_path / "pdf") is False
