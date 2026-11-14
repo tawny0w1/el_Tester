@@ -8,7 +8,7 @@ import threading
 import traceback
 
 from bug_window import BugListWindow, default_save_dir
-from report_form import ReportBugForm
+from report_form import MISSING_ELEMENT_TITLE, ReportBugForm, missing_element_texts
 from reports.model import BugDraft
 from reports.repository import BugRepository
 
@@ -21,6 +21,7 @@ OnReportPdf = Callable[[BugDraft], tuple[str, Path | None]]
 # The (source, target) pages open in the two windows, to prefill the Report bug form
 CurrentUrls = Callable[[], tuple[str, str]]
 RESULT_SHOWN_MS = 3000
+MISSING_ELEMENT_POLL_MS = 200  # how often the toolbar checks for missing-element reports
 DEFAULT_ENGINES: tuple[str, ...] = ("Selenium", "Playwright")  # first = default
 
 WIDTH = 1331  # 30% wider than the first 1024 px, for longer URL fields
@@ -34,7 +35,10 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
                        engine_names: Sequence[str] = DEFAULT_ENGINES,
                        on_report_pdf_callback: OnReportPdf | None = None,
                        bug_repository: BugRepository | None = None,
-                       current_urls_callback: CurrentUrls | None = None):
+                       current_urls_callback: CurrentUrls | None = None,
+                       missing_element_queue: "Queue[str] | None" = None):
+    """missing_element_queue: names of clicked elements the Target doesn't have, put by
+    the engines' sync; each opens a prefilled Report bug form."""
     root = Tk()
     if root.tk.call("tk", "windowingsystem") == "x11":
         # A "dock" window has no decorations, and unlike an override-redirect
@@ -226,8 +230,10 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
             return
         run_in_background(btn_report, current_urls_callback, on_done=show_report_form, busy_text="Opening…")
 
-    def show_report_form(urls: tuple[str, str]) -> str:
-        """Tk thread: open the form prefilled with urls. Returns the Report bug button's text."""
+    def show_report_form(urls: tuple[str, str], title: str = "Report bug",
+                         summary: str = "", description: str = "") -> str:
+        """Tk thread: open the form prefilled with urls (and the texts, if given).
+        Returns the Report bug button's text."""
         nonlocal report_form
 
         def save(draft: BugDraft) -> None:
@@ -242,8 +248,38 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
                 return
             run_in_background(btn_report, lambda: on_report_pdf_callback(draft), on_done=save_pdf_copy)
 
-        report_form = ReportBugForm(root, on_save=save, on_save_pdf=save_with_pdf, urls=urls)
+        report_form = ReportBugForm(root, on_save=save, on_save_pdf=save_with_pdf, urls=urls,
+                                    title=title, summary=summary, description=description)
         return "Report bug"
+
+    def open_missing_element_form(element_name: str) -> None:
+        """A click on the Source found nothing on the Target: open Report bug prefilled
+        with the missing-element texts. Like the button, one form at a time."""
+        if report_form is not None and report_form.winfo_exists():
+            print(f"Missing element {element_name}: a Report bug form is already open")
+            report_form.lift()
+            return
+        summary, description = missing_element_texts(element_name)
+
+        def show(urls: tuple[str, str]) -> str:
+            return show_report_form(urls, MISSING_ELEMENT_TITLE, summary, description)
+
+        if current_urls_callback is None:
+            show(("", ""))
+            return
+        run_in_background(btn_report, current_urls_callback, on_done=show, busy_text="Opening…")
+
+    def poll_missing_elements() -> None:
+        """Tk thread: take element names that the sync put on the queue (Tk isn't thread-safe,
+        so the sync thread can't open the form itself)."""
+        try:
+            open_missing_element_form(missing_element_queue.get_nowait())
+        except Empty:
+            pass
+        root.after(MISSING_ELEMENT_POLL_MS, poll_missing_elements)
+
+    if missing_element_queue is not None:
+        root.after(MISSING_ELEMENT_POLL_MS, poll_missing_elements)
 
     # One bug list at a time: a second click brings it to the front with fresh rows
     # (bugs reported since it was opened appear)
@@ -297,11 +333,13 @@ def start_ui_in_thread(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
                        engine_names: Sequence[str] = DEFAULT_ENGINES,
                        on_report_pdf_callback: OnReportPdf | None = None,
                        bug_repository: BugRepository | None = None,
-                       current_urls_callback: CurrentUrls | None = None):
+                       current_urls_callback: CurrentUrls | None = None,
+                       missing_element_queue: "Queue[str] | None" = None):
     t = threading.Thread(target=create_floating_ui,
                          args=(width, height, on_load_callback, on_close_callback,
                                on_screenshot_callback, on_report_callback, engine_names,
-                               on_report_pdf_callback, bug_repository, current_urls_callback), daemon=True)
+                               on_report_pdf_callback, bug_repository, current_urls_callback,
+                               missing_element_queue), daemon=True)
     t.start()
     return t
 

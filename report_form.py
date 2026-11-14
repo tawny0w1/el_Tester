@@ -17,6 +17,17 @@ OnEdit = Callable[[BugReport], None]
 
 NO_RESOLUTION = "---"  # how Bugzilla shows an open bug's empty resolution
 
+# Window title of the form that opens when a clicked element is missing on the Target
+MISSING_ELEMENT_TITLE = "Clicked element not found on Target site. Please report a bug."
+
+
+def missing_element_texts(element_name: str) -> tuple[str, str]:
+    """Summary and Description of a missing-element report (Reqirements.md, Phase 5 element 6)."""
+    summary = f"Element {element_name} not found"
+    description = (f"Test Result:\nOn target page element {element_name} cannot be found.\n\n"
+                   "Expected Result:\nClickable element should be present on target page.")
+    return summary, description
+
 
 def add_url_field(form: Toplevel, row: int, label: str, url: str) -> StringVar:
     """A label and an editable URL entry in this row of the form's grid; returns the entry's variable.
@@ -40,21 +51,25 @@ class ReportBugForm(Toplevel):
     """
 
     def __init__(self, master: Tk, on_save: OnSave, on_save_pdf: OnSave | None = None,
-                 urls: tuple[str, str] = ("", "")) -> None:
+                 urls: tuple[str, str] = ("", ""), title: str = "Report bug",
+                 summary: str = "", description: str = "") -> None:
         """on_save_pdf: same fields, for the "Save and create PDF" button (hidden when None).
 
         urls: (source, target) to prefill, normally the pages open in the two windows.
+        title, summary, description: the window title and prefilled texts; the
+        defaults are the toolbar's empty Report bug form. The missing-element
+        report passes its own (see missing_element_texts).
         """
         super().__init__(master)
         self.on_save = on_save
         self.on_save_pdf = on_save_pdf
-        self.title("Report bug")
+        self.title(title)
         self.attributes("-topmost", True)  # stay above the browser windows
         self.resizable(False, False)
         self.configure(padx=10, pady=8)
 
         Label(self, text="Summary").grid(row=0, column=0, sticky="w")
-        self.summary_var = StringVar()
+        self.summary_var = StringVar(value=summary)
         self.summary_entry = Entry(self, textvariable=self.summary_var, width=60)
         self.summary_entry.grid(row=0, column=1, sticky="we", pady=2)
 
@@ -69,6 +84,7 @@ class ReportBugForm(Toplevel):
 
         Label(self, text="Description").grid(row=4, column=0, sticky="nw")
         self.description_text = Text(self, width=60, height=8, wrap="word")
+        self.description_text.insert("1.0", description)
         self.description_text.grid(row=4, column=1, pady=2)
 
         self.error_label = Label(self, text="", fg="#c00")
@@ -188,15 +204,22 @@ class EditBugForm(Toplevel):
 
 
 if __name__ == "__main__":
-    # Run a form alone for layout testing: python3 report_form.py [edit]
+    # Run a form alone for layout testing: python3 report_form.py [edit | missing]
     import sys
 
     root = Tk()
-    if sys.argv[1:] == ["edit"]:
+    if sys.argv[1:] == ["missing"]:
+        root.withdraw()
+        summary, description = missing_element_texts("Button B")
+        form: Toplevel = ReportBugForm(root, lambda draft: print("Saved:", draft),
+                                       lambda draft: print("Saved, PDF requested:", draft),
+                                       urls=("http://localhost:8000/index.html", "http://127.0.0.1:8000/index2.html"),
+                                       title=MISSING_ELEMENT_TITLE, summary=summary, description=description)
+    elif sys.argv[1:] == ["edit"]:
         # root stays visible: X hides a transient window while its parent is hidden
         sample = BugReport(engine="selenium", source_url="http://localhost/a", target_url="http://127.0.0.1/a",
                            summary="Typo on slide 3", description="Missing letter", id=7)
-        form: Toplevel = EditBugForm(root, sample, lambda edited: print("Saved:", edited))
+        form = EditBugForm(root, sample, lambda edited: print("Saved:", edited))
     else:
         root.withdraw()
         form = ReportBugForm(root, lambda draft: print("Saved:", draft),

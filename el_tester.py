@@ -601,6 +601,9 @@ def start_playwright() -> Engine:
 ENGINES: dict[str, Callable[[], Engine]] = {"Selenium": SeleniumEngine, "Playwright": start_playwright}
 
 app_queue: "Queue[tuple[str, str, str] | None]" = Queue()  # (left_url, right_url, engine), None = quit
+# Names of elements clicked on the Source but missing on the Target; the toolbar
+# opens a prefilled Report bug form for each (Phase 5 item 6)
+missing_elements: "Queue[str]" = Queue()
 shutdown_requested = threading.Event()
 active_engine: Engine | None = None  # set by the main thread only
 
@@ -722,5 +725,6 @@ if __name__ == "__main__":
     start_ui_in_thread(on_load_callback=on_load_url, on_close_callback=request_shutdown,
                        on_screenshot_callback=on_screenshot, on_report_callback=on_report_bug,
                        engine_names=list(ENGINES), on_report_pdf_callback=on_report_bug_pdf,
-                       bug_repository=bug_reporter.repository, current_urls_callback=current_urls)
+                       bug_repository=bug_reporter.repository, current_urls_callback=current_urls,
+                       missing_element_queue=missing_elements)
     run_app()

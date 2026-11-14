@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>EL Tester: index 2 (Button B missing)</title>
+<link rel="stylesheet" href="common.css"><script src="common.js"></script></head>
+<body>
+<h1>EL Tester test pages</h1>
+<div class="hint">Target copy of index.html with ONE clickable element missing: Button B.
+Open index.html on the left and this page on the right, then click Button B on the LEFT:
+the right can't find it (Phase 5 item 6, missing-element report). Everything else is the same as index.html.</div>
+<nav id="nav">
+  <a id="link-form" href="form.html">Form</a>
+  <a id="link-nested" href="nested.html">Nested iframes</a>
+  <a id="link-cross" href="cross_origin.html">Cross-origin iframe</a>
+  <a id="link-page2" href="page2.html">Page 2</a>
+</nav>
+<p>
+  <button id="btn-a" class="count">Button A</button>
+</p>
+<div id="markers"></div>
+<p><button id="btn-bottom" class="count">Bottom button</button></p>
+<script>
+  // Tall page: numbered markers make it easy to compare scroll positions
+  var m = document.getElementById('markers');
+  for (var i = 1; i <= 120; i++) {
+    var d = document.createElement('div');
+    d.className = 'marker'; d.textContent = 'Marker ' + i;
+    m.appendChild(d);
+  }
+</script>
+</body></html>

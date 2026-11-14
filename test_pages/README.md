@@ -46,6 +46,7 @@ Results from 2026-11-04 (headless run of `el_tester.py` with scripted input on t
 | `form.html` | tick the checkbox | ticked | ✅ |
 | `form.html` | press Enter in Name, or click Submit | `submitted.html` with the same values | ⚠️ right submits too (implicit submission clicks the Submit button); values match since item 3 |
 | `page2.html` | browser Back | go back too | ❌ item 6 |
+| `index.html` ↔ `index2.html` (right) | click Button B (missing on the right) | Phase 5 item 6: a pre-filled "Element … not found" bug form opens | ⏳ today only "not found on the right" is printed (`tests/ui_missing_element.py`) |
 
 The terminal should show no `sync stopped` lines. `... error #N ..., retrying` right after a navigation is
 expected.
