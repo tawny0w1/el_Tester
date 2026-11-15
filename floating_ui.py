@@ -28,6 +28,7 @@ WIDTH = 1331  # 30% wider than the first 1024 px, for longer URL fields
 HEIGHT = 82   # title bar + two URL rows
 TITLE_BAR_HEIGHT = 22  # the grey bar with "EL Tester"; drag it to move the toolbar
 URL_ENTRY_CHARS = 74   # 30% wider than 57; leaves room for the tool menu and buttons in WIDTH
+DEFAULT_SOURCE_URL = "https://360.eu.articulate.com/review/content/1e64fc6d-b59c-4abf-8e4e-dfdbfd41838b/review"
 
 def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_close_callback=None,
                        on_screenshot_callback: OnScreenshot | None = None,
@@ -36,10 +37,12 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
                        on_report_pdf_callback: OnReportPdf | None = None,
                        bug_repository: BugRepository | None = None,
                        current_urls_callback: CurrentUrls | None = None,
-                       missing_element_queue: "Queue[str] | None" = None):
+                       missing_element_queue: "Queue[str] | None" = None,
+                       source_url: str = DEFAULT_SOURCE_URL):
     """missing_element_queue: names of clicked elements the Target doesn't have, put by
     the engines' sync; each opens a prefilled Report bug form."""
     root = Tk()
+    root.title("EL Tester")  # shown by task switchers; found by title in tests and docs/make_animations.py
     if root.tk.call("tk", "windowingsystem") == "x11":
         # A "dock" window has no decorations, and unlike an override-redirect
         # window it can get keyboard focus (Tk never sets X focus on those)
@@ -88,7 +91,7 @@ def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
 
     # Two URL rows: Left, and Right (empty = same URL as Left), to compare two
     # versions of a course that live at different URLs
-    left_var = StringVar(value="https://360.eu.articulate.com/review/content/1e64fc6d-b59c-4abf-8e4e-dfdbfd41838b/review")
+    left_var = StringVar(value=source_url)
     right_var = StringVar(value="")
     url_rows = Frame(frame, bg="#222")
     url_rows.pack(side=LEFT, padx=(6, 4), pady=2)
@@ -344,5 +347,6 @@ def start_ui_in_thread(width=WIDTH, height=HEIGHT, on_load_callback=None, on_clo
     return t
 
 if __name__ == "__main__":
-    # Run standalone for quick test
-    create_floating_ui()
+    # Run standalone for quick test: python3 floating_ui.py [source_url]
+    import sys
+    create_floating_ui(source_url=sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SOURCE_URL)

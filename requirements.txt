@@ -1,0 +1,18 @@
+# EL Tester: Python packages. Install with:  pip install -r requirements.txt
+#
+# Not installed by pip (install them from your system first, see README.md):
+#   - Python 3.10 or newer, with tkinter (Debian/Ubuntu: sudo apt install python3-tk)
+#   - Google Chrome or Chromium
+#   - Playwright's browser, once:  python -m playwright install chromium
+
+# Browser engines (pick one in the toolbar's "Test tool" menu)
+selenium>=4.8         # pip's selenium includes Selenium Manager, which downloads chromedriver
+playwright>=1.40
+
+# Bug reports
+reportlab>=3.6        # PDF export
+Pillow>=9.0           # screenshot preview in the bug list, README animations
+
+# Tests
+pytest>=7.0
+pypdf>=3.0            # reads the exported PDFs in the tests
