@@ -6,6 +6,8 @@ console.log("Reinjecting click interception script");
 function handleClick(event) {
     var target = event.target.closest('a, button, input[type="checkbox"], input[type="radio"], .flashcard, .quiz-multiple-choice-option__input');
     if (target) {
+        // Read by Python only if the target has no such element (bug report)
+        window.sessionStorage.setItem('lastClickedName', getElementName(target));
         var frameXPaths = getFrameXPaths(target);
         var url = target.href || null;
         if (url && frameXPaths.length === 0) {

@@ -10,7 +10,8 @@
 document.addEventListener('click', function (event) {
     var target = event.target.closest('a, button, input[type="checkbox"], input[type="radio"], .flashcard, .quiz-multiple-choice-option__input');
     if (target) {
-        window.reportAction({type: 'click', xpath: getXPath(target)});
+        // name: for the bug report if the right has no such element
+        window.reportAction({type: 'click', xpath: getXPath(target), name: getElementName(target)});
     }
 }, true);
 

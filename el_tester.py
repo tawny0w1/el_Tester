@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 from queue import Empty, Queue
 from typing import Any, Callable
-from engine import WINDOW_HEIGHT, WINDOW_POSITION_JS, WINDOW_WIDTH, Engine, right_window_x
+from engine import MISSING_ELEMENT_WAIT_S, WINDOW_HEIGHT, WINDOW_POSITION_JS, WINDOW_WIDTH, Engine, right_window_x
 from js_loader import load_js
 from reports.model import BugDraft, BugReport
 from reports.pdf_exporter import PdfExporter, pdf_path_for
@@ -322,6 +322,23 @@ def selenium_worker(engine: SeleniumEngine) -> None:
         return driver_right.execute_script(
             FIND_IN_FRAMES_JS + action_js + "\nreturn true;", frame_xpaths, xpath, *args)
 
+    # run_on_right, retried every 100 ms for up to MISSING_ELEMENT_WAIT_S,
+    # because the right page may still be loading. Returns False if the
+    # element never shows up.
+    def wait_and_run_on_right(frame_xpaths: list[str], xpath: str, action_js: str) -> Any:
+        deadline = time.monotonic() + MISSING_ELEMENT_WAIT_S
+        while True:
+            result = run_on_right(frame_xpaths, xpath, action_js)
+            if result or time.monotonic() >= deadline:
+                return result
+            time.sleep(0.1)
+
+    # The clicked element is missing on the right: hand its name to the
+    # toolbar, which opens a prefilled Report bug form
+    def report_missing_element() -> None:
+        name = driver_left.execute_script("return window.sessionStorage.getItem('lastClickedName') || '';")
+        missing_elements.put(name)
+
     # Function to synchronize clicks and handle non-URL elements
     def synchronize_clicks():
         last_synced_url = None
@@ -337,12 +354,13 @@ def selenium_worker(engine: SeleniumEngine) -> None:
                     # The right version may live at a different URL, so open the
                     # href of the same link (same XPath) in the right window
                     link_xpath = driver_left.execute_script("return window.sessionStorage.getItem('lastClickedLinkXPath');")
-                    right_url = run_on_right([], link_xpath, "return el.href;")
+                    right_url = wait_and_run_on_right([], link_xpath, "return el.href;")
+                    if not right_url:
+                        print(f"Link {link_xpath} not found on the right; right window stays")
+                        report_missing_element()  # before the left navigates: it reads the left's sessionStorage
                     driver_left.get(clicked_url)
                     if right_url:
                         driver_right.get(right_url)
-                    else:
-                        print(f"Link {link_xpath} not found on the right; right window stays")
                     time.sleep(1)
                     inject_click_tracking(driver_left)
                     inject_click_tracking(driver_right)
@@ -355,8 +373,9 @@ def selenium_worker(engine: SeleniumEngine) -> None:
                     print(f"---------->Click detected (non-URL, xpath):\n {clicked_xpath}" + (f"\n in iframes {frame_xpaths}" if frame_xpaths else ""))
 
                     try:
-                        if not run_on_right(frame_xpaths, clicked_xpath, "el.click();"):
+                        if not wait_and_run_on_right(frame_xpaths, clicked_xpath, "el.click();"):
                             print(f"Could not click {clicked_xpath} in iframes {frame_xpaths}: not found on the right")
+                            report_missing_element()
                     except Exception as e:
                         if is_driver_gone(e):
                             raise  # let the outer handler stop the loop
@@ -595,7 +614,7 @@ def selenium_worker(engine: SeleniumEngine) -> None:
 
 def start_playwright() -> Engine:
     from pw_tester import PwEngine  # imported only when chosen: Selenium works without Playwright
-    return PwEngine()
+    return PwEngine(on_missing_element=missing_elements.put)
 
 
 ENGINES: dict[str, Callable[[], Engine]] = {"Selenium": SeleniumEngine, "Playwright": start_playwright}

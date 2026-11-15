@@ -13,6 +13,9 @@ WINDOW_HEIGHT = 1080
 # Chromium draws its own window frame on Linux, with an invisible 16 px shadow
 # on each side: a window reported at x=50, 930 wide, is visible from 66 to 964.
 FRAME_SHADOW_PX = 16
+# How long the target window may take to show a clicked element (it may still be
+# loading) before the click counts as "element missing" (Phase 5 item 6)
+MISSING_ELEMENT_WAIT_S = 2.0
 WINDOW_POSITION_JS = "[window.screenX, window.screenY, window.outerWidth]"  # where the window really is
 
 

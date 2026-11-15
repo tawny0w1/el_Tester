@@ -40,3 +40,15 @@ function getFrameXPaths(el) {
     }
     return path;
 }
+
+// Short name of an element for a bug report: its visible text (first 40
+// characters), else its aria-label, else tag#id, else its XPath.
+// Example: <button id="btn-b">Button B (0)</button> -> "Button B (0)"
+function getElementName(el) {
+    var text = (el.innerText || el.value || '').trim().replace(/\s+/g, ' ');
+    if (text) return text.slice(0, 40);
+    var label = el.getAttribute('aria-label');
+    if (label) return label;
+    if (el.id) return el.tagName.toLowerCase() + '#' + el.id;
+    return getXPath(el);
+}

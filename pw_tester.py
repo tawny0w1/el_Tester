@@ -19,11 +19,11 @@ from typing import Any, Callable
 from playwright.sync_api import Browser, BrowserContext, Frame, Page, Playwright, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from engine import WINDOW_HEIGHT, WINDOW_POSITION_JS, WINDOW_WIDTH, right_window_x
+from engine import MISSING_ELEMENT_WAIT_S, WINDOW_HEIGHT, WINDOW_POSITION_JS, WINDOW_WIDTH, right_window_x
 from js_loader import load_js
 
 SYSTEM_CHROMIUM = "/usr/bin/chromium"  # no Playwright browser download in the container
-REPLAY_TIMEOUT_MS = 2000  # how long the right waits for a missing element or frame
+REPLAY_TIMEOUT_MS = int(MISSING_ELEMENT_WAIT_S * 1000)  # how long the right waits for a missing element or frame
 SCREENSHOT_TIMEOUT_MS = 10000  # per window; Playwright waits for web fonts before capturing
 # Playwright wraps each init script in its own scope, so getXPath is not a
 # global there: evaluate calls bring their own copy
@@ -62,7 +62,10 @@ FIND_PLAYER_JS = """grace => {
 class PwTester:
     """Two Chromium windows; the left page's actions are replayed on the right."""
 
-    def __init__(self, playwright: Playwright, headless: bool = False) -> None:
+    def __init__(self, playwright: Playwright, headless: bool = False,
+                 on_missing_element: Callable[[str], None] | None = None) -> None:
+        # Called with the element's name when a clicked element isn't on the right
+        self._on_missing_element = on_missing_element
         self._browsers: list[Browser] = [self._launch(playwright, x, headless) for x in (0, WINDOW_WIDTH)]
         # no_viewport: the page follows the window size, as in the Selenium version
         left_context: BrowserContext = self._browsers[0].new_context(no_viewport=True)
@@ -146,6 +149,10 @@ class PwTester:
             frame = self._right_frame(frame_xpaths)
             frame.locator(f"xpath={action['xpath']}").evaluate(
                 REPLAY_JS[action["type"]], action, timeout=REPLAY_TIMEOUT_MS)
+        except PlaywrightTimeoutError:  # no such element (or iframe) on the right within the wait
+            print(f"Could not replay {action['type']} on {action['xpath']}: not found on the right")
+            if action["type"] == "click" and self._on_missing_element:
+                self._on_missing_element(action["name"])
         except Exception as e:  # a missing element must not stop the sync
             print(f"Could not replay {action.get('type')} on {action.get('xpath')} on the right: {e}")
 
@@ -208,14 +215,15 @@ class PwEngine:
     """
     name = "playwright"
 
-    def __init__(self, headless: bool = False) -> None:
+    def __init__(self, headless: bool = False, on_missing_element: Callable[[str], None] | None = None) -> None:
         self._tasks: "Queue[Task | None]" = Queue()  # None = stop
+        self._on_missing_element = on_missing_element  # called on this engine's thread
         self._thread = threading.Thread(target=self._run, args=(headless,), daemon=True, name="playwright")
         self._thread.start()
 
     def _run(self, headless: bool) -> None:
         with sync_playwright() as p:
-            tester = PwTester(p, headless=headless)
+            tester = PwTester(p, headless=headless, on_missing_element=self._on_missing_element)
             try:
                 while True:
                     try:
