@@ -1,5 +1,5 @@
 """Playwright version of the tester (Phase 4): clicks, inputs, scroll, Rise
-review links, screenshots.
+review links, screenshots; drag and drop and the video warning (Phase 7).
 
     python3 pw_tester.py <left_url> [right_url] [--headless]
 
@@ -11,6 +11,7 @@ PwEngine wraps PwTester in that thread for el_tester.py (the toolbar).
 """
 import argparse
 import threading
+import time
 from concurrent.futures import Future
 from pathlib import Path
 from queue import Empty, Queue
@@ -42,8 +43,14 @@ REPLAY_JS: dict[str, str] = {
         el.dispatchEvent(new Event('change', {bubbles: true}));
     }""",
     "scroll": "(el, a) => { el.scrollTop = a.top; }",
+    # Phase 7, from js/pw_drag_video.js
+    "drag": load_js("pw_drag_replay.js"),
+    "video_hover": load_js("pw_video_notice.js"),
 }
 QUIET_ACTIONS = {"scroll"}  # too frequent to print
+# A click on the dragged element this soon after its drag is the browser's
+# click that ends the drag (see PwTester._is_click_ending_drag)
+DRAG_END_CLICK_S = 1.0
 
 # Review360 pages show the course in an iframe.player, added by JS about 2.5 s
 # after "load" (measured 2026-11-10). Waiting stops when the player is there,
@@ -66,11 +73,13 @@ class PwTester:
                  on_missing_element: Callable[[str], None] | None = None) -> None:
         # Called with the element's name when a clicked element isn't on the right
         self._on_missing_element = on_missing_element
+        # (iframe XPaths, element XPath, time) of the last replayed drag
+        self._last_drag: tuple[list[str], str, float] | None = None
         self._browsers: list[Browser] = [self._launch(playwright, x, headless) for x in (0, WINDOW_WIDTH)]
         # no_viewport: the page follows the window size, as in the Selenium version
         left_context: BrowserContext = self._browsers[0].new_context(no_viewport=True)
         left_context.expose_binding("reportAction", self._on_action)
-        left_context.add_init_script(script=load_js("xpath.js", "pw_tracker.js"))
+        left_context.add_init_script(script=load_js("xpath.js", "pw_tracker.js", "pw_drag_video.js"))
         self.left: Page = left_context.new_page()
         self.right: Page = self._browsers[1].new_context(no_viewport=True).new_page()
         if not headless:  # a headless window isn't on the screen
@@ -144,6 +153,11 @@ class PwTester:
         # of reportAction, so it would never show up in this terminal
         try:
             frame_xpaths = self._frame_xpaths(source["frame"])
+            if self._is_click_ending_drag(frame_xpaths, action):
+                print(f"click: {action['xpath']} ends the drag, not replayed")
+                return
+            if action["type"] == "drag":
+                self._last_drag = (frame_xpaths, action["xpath"], time.monotonic())
             if action["type"] not in QUIET_ACTIONS:
                 print(f"{action['type']}: {action['xpath']}" + (f" in iframes {frame_xpaths}" if frame_xpaths else ""))
             frame = self._right_frame(frame_xpaths)
@@ -155,6 +169,22 @@ class PwTester:
                 self._on_missing_element(action["name"])
         except Exception as e:  # a missing element must not stop the sync
             print(f"Could not replay {action.get('type')} on {action.get('xpath')} on the right: {e}")
+
+    def _is_click_ending_drag(self, frame_xpaths: list[str], action: dict) -> bool:
+        """True for the click the browser fires on a piece when a drag on it ends.
+
+        The page on the left ignores that click (Rise does). Replayed on the right,
+        it would come as a separate, new click after the replayed drag, and on Rise
+        a click on a matched piece unmatches it. Found 2026-11-16 with
+        tests/rise_drag_probe.py; reproduced by test_pages/drag.html.
+        """
+        if action["type"] != "click" or self._last_drag is None:
+            return False
+        drag_frames, drag_xpath, drag_time = self._last_drag
+        if (drag_frames, drag_xpath) != (frame_xpaths, action["xpath"]):
+            return False
+        self._last_drag = None  # only that one click: a later click on the piece is a real one
+        return time.monotonic() - drag_time < DRAG_END_CLICK_S
 
     @staticmethod
     def _frame_xpaths(frame: Frame) -> list[str]:

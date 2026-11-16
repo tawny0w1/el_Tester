@@ -32,6 +32,9 @@ need to start a web server first.
 | `pw_e2e_sync.py`         | Playwright: clicks, scroll, inputs, iframes (also from another website), links       | -                  |
 | `e2e_engine_switch.py`   | Switching between Selenium and Playwright in the running app                         | -                  |
 | `e2e_pdf_report.py`      | "Save and create PDF" with both tools                                                 | -                  |
+| `pw_drag.py`             | Playwright: drag and drop on `drag.html`, also in a cross-origin iframe (Phase 7)    | -                  |
+| `pw_video.py`            | Playwright: video warning on `video.html` (Phase 7)                                   | -                  |
+| `pw_rise_drag.py`        | Playwright: drag and drop on the real Review 360 course (Phase 7)                     | internet           |
 | `pw_review360.py`        | Playwright on a real Articulate Review 360 course                                     | internet           |
 | `ui_missing_element.py`  | A button missing on the Target opens the filled-in bug report, with both tools        | a screen           |
 | `ui_pdf_save.py`         | Toolbar → Report bug form → save dialog                                               | a screen           |

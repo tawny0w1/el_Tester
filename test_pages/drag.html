@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>EL Tester: drag and drop</title>
+<link rel="stylesheet" href="common.css">
+<style>
+  .matching { display: flex; gap: 60px; }
+  .matching ul { list-style: none; padding: 0; margin: 0; width: 260px; }
+  .matching li { margin-bottom: 14px; }
+  .matching-interaction-piece, .drop-card { display: flex; align-items: center; gap: 10px; width: 100%; height: 60px;
+                                            box-sizing: border-box; border: 1px solid #999; border-radius: 4px; background: #fff;
+                                            font-size: 14px; padding: 0 10px; text-align: left; }
+  .matching-interaction-piece { cursor: grab; touch-action: none; }
+  .matching-interaction-piece .grip { color: #e06a2c; font-weight: bold; }
+  .matching-interaction-piece .state { margin-left: auto; font-size: 12px; color: #666; }
+  .matching-interaction-piece.dragging { position: relative; z-index: 10; box-shadow: 0 4px 10px rgba(0,0,0,.3); cursor: grabbing; }
+  .matching-interaction-piece[data-state^="matched"] { background: #d4edda; }
+  .matching-interaction-piece[data-state="selected"] { background: #fde2cf; }
+  .drop-card { background: #eef3fb; }
+</style>
+</head>
+<body>
+<h1>Drag and drop</h1>
+<div class="hint">Like a Rise matching exercise: drag a piece (left) onto a card (right) and it shows
+"Matched with Card n". A click without dragging selects a piece, and a click on a matched piece unmatches it.
+Like Rise, the click the browser fires at the end of a drag is ignored here. The class name
+<code>matching-interaction-piece</code> is the one Rise uses, so both engines track these pieces.</div>
+<nav><a id="link-index" href="index.html">Index</a></nav>
+<div class="matching">
+  <ul>
+    <li><button class="matching-interaction-piece" id="piece-a" type="button"><span class="grip">⋮⋮</span>Piece A<span class="state"></span></button></li>
+    <li><button class="matching-interaction-piece" id="piece-b" type="button"><span class="grip">⋮⋮</span>Piece B<span class="state"></span></button></li>
+    <li><button class="matching-interaction-piece" id="piece-c" type="button"><span class="grip">⋮⋮</span>Piece C<span class="state"></span></button></li>
+  </ul>
+  <ul>
+    <li class="drop-card" id="card-1">Card 1</li>
+    <li class="drop-card" id="card-2">Card 2</li>
+    <li class="drop-card" id="card-3">Card 3</li>
+  </ul>
+</div>
+<script>
+  // A piece's state is in data-state ('', 'selected' or 'matched:card-n') and in its text,
+  // so the tests and a human can compare the two windows.
+  function setState(piece, state) {
+    piece.dataset.state = state;
+    piece.querySelector('.state').textContent =
+      state.startsWith('matched') ? 'Matched with ' + document.getElementById(state.slice(8)).textContent
+      : state === 'selected' ? 'Selected' : '';
+  }
+  document.querySelectorAll('.matching-interaction-piece').forEach(function (p) { setState(p, ''); });
+
+  var drag = null;          // {piece, x, y} while a piece is held
+  var ignoreClick = false;  // true right after a drag: the browser then fires a click on the piece
+
+  document.addEventListener('pointerdown', function (e) {
+    ignoreClick = false;  // a new gesture starts
+    var piece = e.target.closest('.matching-interaction-piece');
+    if (!piece) return;
+    drag = {piece: piece, x: e.clientX, y: e.clientY};
+    piece.classList.add('dragging');
+  });
+
+  document.addEventListener('pointermove', function (e) {
+    if (drag) drag.piece.style.transform = 'translate(' + (e.clientX - drag.x) + 'px,' + (e.clientY - drag.y) + 'px)';
+  });
+
+  document.addEventListener('pointerup', function (e) {
+    if (!drag) return;
+    var piece = drag.piece;
+    var moved = Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 5;
+    piece.style.transform = '';
+    piece.classList.remove('dragging');
+    drag = null;
+    if (!moved) return;  // a plain click: handled by the click listener
+    var card = document.elementsFromPoint(e.clientX, e.clientY).find(function (el) { return el.classList.contains('drop-card'); });
+    if (card) setState(piece, 'matched:' + card.id);
+    // The browser's own click that ends this drag is ignored, as Rise does. A click from
+    // a script (el.click(), e.g. a replayed click) is not "trusted" and counts as a new
+    // click, so it unmatches the piece, as it does on Rise. No timer: Chrome slows timers
+    // in a window that is not in front.
+    ignoreClick = true;
+  });
+
+  document.addEventListener('click', function (e) {
+    var piece = e.target.closest('.matching-interaction-piece');
+    if (!piece) return;
+    if (ignoreClick && e.isTrusted) {
+      ignoreClick = false;
+      return;
+    }
+    setState(piece, piece.dataset.state === '' ? 'selected' : '');
+  });
+</script>
+</body></html>

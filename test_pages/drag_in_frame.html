@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>EL Tester: drag in a cross-origin iframe</title>
+<link rel="stylesheet" href="common.css"></head>
+<body>
+<h1>Drag and drop inside an iframe from another origin</h1>
+<div class="hint">drag.html, loaded from the other host name ("localhost" and "127.0.0.1" are different
+origins). Playwright syncs it; Selenium tracks drags on the top page only.</div>
+<nav><a id="link-index" href="index.html">Index</a></nav>
+<iframe id="frame-cross" height="320"></iframe>
+<script>
+  var other = location.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
+  document.getElementById('frame-cross').src = location.protocol + '//' + other + ':' + location.port + '/drag.html';
+</script>
+</body></html>

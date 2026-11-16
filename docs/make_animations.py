@@ -114,8 +114,9 @@ def form_inputs(rec: Recorder, left: str, right: str) -> None:
     rec.snap("A form on both sides", 1500)
     name = t.left.locator("#name")
     name.click()
-    for i in range(1, len("Anna") + 1):
-        name.fill("Anna"[:i])
+    example_name = "John"
+    for i in range(1, len(example_name) + 1):
+        name.fill(example_name[:i])
         rec.snap("Type in a field  →  the same text appears on the Target", 350)
     rec.add(rec.frames[-1], 900)
     t.left.select_option("#lang", "pl")
