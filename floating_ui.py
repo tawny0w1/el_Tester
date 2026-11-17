@@ -28,7 +28,7 @@ WIDTH = 1331  # 30% wider than the first 1024 px, for longer URL fields
 HEIGHT = 82   # title bar + two URL rows
 TITLE_BAR_HEIGHT = 22  # the grey bar with "EL Tester"; drag it to move the toolbar
 URL_ENTRY_CHARS = 74   # 30% wider than 57; leaves room for the tool menu and buttons in WIDTH
-DEFAULT_SOURCE_URL = "https://360.eu.articulate.com/review/content/1e64fc6d-b59c-4abf-8e4e-dfdbfd41838b/review"
+DEFAULT_SOURCE_URL = "https://testpageright.strix-aluco.workers.dev/"
 
 def create_floating_ui(width=WIDTH, height=HEIGHT, on_load_callback=None, on_close_callback=None,
                        on_screenshot_callback: OnScreenshot | None = None,
